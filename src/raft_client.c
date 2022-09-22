@@ -176,6 +176,7 @@ struct raft_client_request_handle
     pthread_cond_t            *rcrh_cond_var;
     raft_client_user_cb_t      rcrh_async_cb;
     void                      *rcrh_arg;
+    uuid                       rcrh_conn_session_uuid;
     struct raft_client_rpc_msg rcrh_rpc_request;
 };
 
