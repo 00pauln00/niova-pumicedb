@@ -176,23 +176,11 @@ AC_CHECK_LIB([niova_raft],[raft_server_instance_run],
              ],
              [AC_MSG_ERROR([Could not find raft_server_instance_run])])
 
-AC_CHECK_LIB([niova_pumice],[PmdbExec],
-             [
-                AC_SUBST(NIOVA_PUMICE, [-lniova_pumice])
-             ],
-             [AC_MSG_ERROR([Could not find PmdbExec])])
-
 AC_CHECK_LIB([niova_raft_client],[raft_client_init],
              [
                 AC_SUBST(NIOVA_RAFT_CLIENT_LIBS, [-lniova_raft_client])
              ],
              [AC_MSG_ERROR([Could not find raft_client_init])])
-
-AC_CHECK_LIB([niova_pumice_client],[PmdbClientStart],
-             [
-                AC_SUBST(NIOVA_PUMICE_CLIENT_LIBS, [-lniova_pumice_client])
-             ],
-             [AC_MSG_ERROR([Could not find PmdbClientStart])])
 
 AC_ARG_ENABLE(
     [asan],
