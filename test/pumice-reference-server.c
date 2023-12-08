@@ -9,12 +9,13 @@
 
 #include <rocksdb/c.h>
 
-#include "niova_backtrace.h"
+#include "niova/niova_backtrace.h"
 
-#include "common.h"
-#include "registry.h"
-#include "raft_net.h"
-#include "raft_test.h"
+#include "niova/common.h"
+#include "niova/registry.h"
+#include "niova/raft/raft_net.h"
+#include "niova/raft/raft_test.h"
+
 #include "pumice_db.h"
 
 #define OPTS "u:r:hac"
@@ -226,7 +227,7 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
     const void *input_buf = args->pcb_req_buf;
     size_t input_bufsz = args->pcb_req_bufsz;
     void *pmdb_handle = args->pcb_pmdb_handler;
-    
+
     const struct raft_test_data_block *rtdb =
         (const struct raft_test_data_block *)input_buf;
 

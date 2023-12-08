@@ -8,17 +8,19 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
-#include "niova_backtrace.h" // place before log.h
+#include "niova/niova_backtrace.h" // place before log.h
 
-#include "common.h"
-#include "log.h"
-#include "alloc.h"
+#include "niova/common.h"
+#include "niova/log.h"
+#include "niova/alloc.h"
+#include "niova/random.h"
+#include "niova/regex_defines.h"
+#include "niova/thread.h"
+#include "niova/util_thread.h"
+
+#include "niova/raft/raft_test.h"
+
 #include "pumice_db_client.h"
-#include "raft_test.h"
-#include "random.h"
-#include "regex_defines.h"
-#include "thread.h"
-#include "util_thread.h"
 
 #define OPTS "au:r:h"
 

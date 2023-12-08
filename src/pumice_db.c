@@ -9,17 +9,19 @@
 
 #include <rocksdb/c.h>
 
-#include "alloc.h"
-#include "crc32.h"
-#include "log.h"
+#include "niova/alloc.h"
+#include "niova/crc32.h"
+#include "niova/log.h"
+#include "niova/registry.h"
+#include "niova/ref_tree_proto.h"
+#include "niova/fault_inject.h"
+
+#include "niova/raft/raft.h"
+#include "niova/raft/raft_net.h"
+#include "niova/raft/raft_server_backend_rocksdb.h"
+
 #include "pumice_db.h"
 #include "pumice_db_net.h"
-#include "raft.h"
-#include "raft_net.h"
-#include "raft_server_backend_rocksdb.h"
-#include "registry.h"
-#include "ref_tree_proto.h"
-#include "fault_inject.h"
 
 LREG_ROOT_ENTRY_GENERATE(pumicedb_entry, LREG_USER_TYPE_RAFT);
 REGISTRY_ENTRY_FILE_GENERATE;

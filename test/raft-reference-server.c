@@ -10,15 +10,15 @@
 #include <netinet/in.h>
 #include <netinet/udp.h>
 
-#include "niova_backtrace.h"
+#include "niova/niova_backtrace.h"
 
-#include "registry.h"
-#include "log.h"
-#include "raft.h"
-#include "raft_net.h"
-#include "raft_test.h"
-#include "ref_tree_proto.h"
-#include "alloc.h"
+#include "niova/registry.h"
+#include "niova/log.h"
+#include "niova/raft.h"
+#include "niova/raft_net.h"
+#include "niova/raft_test.h"
+#include "niova/ref_tree_proto.h"
+#include "niova/alloc.h"
 
 #define OPTS "u:r:hRa"
 
