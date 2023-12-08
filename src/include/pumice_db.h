@@ -11,9 +11,9 @@
 #include <rocksdb/c.h>
 
 #include "pumice_db_net.h"
-#include "raft_net.h"
-#include "raft.h"
-#include "common.h"
+#include "niova/raft/raft_net.h"
+#include "niova/raft/raft.h"
+#include "niova/common.h"
 
 typedef ssize_t pumicedb_apply_ctx_ssize_t;
 typedef ssize_t pumicedb_write_prep_ctx_ssize_t;
