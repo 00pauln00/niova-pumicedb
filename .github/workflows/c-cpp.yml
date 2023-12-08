@@ -2,9 +2,9 @@ name: C/C++ CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -19,22 +19,36 @@ jobs:
       run: echo "sudo -E apt-get install -y uuid-dev uuid libuuid1 libaio-dev libaio1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0"
     - name: dpkg / rpm prep
       run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libaio-dev libaio1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
+
 # capture gcc and clang versions
     - name: gcc version
       run: gcc --version
     - name: clang version
       run: clang --version
-# build backtrace submodule
+
+# niova-pumicedb submodule init
     - name: submodule init
       run: git submodule init && git submodule update
+
 # build backtrace submodule
     - name: build libbacktrace
       run: cd modules/libbacktrace/ && ./configure && make && sudo make install
+
+# niova-core submodule init
+    - name: submodule init (niova-core)
+    run: cd niova-core && git submodule init && git submodule update
+
+# build niova-core
+     - name: build niova-core
+      run: git submodule update && cd niova-core/ && ./prepare.sh &&
+      ./configure --enable-devel --prefix=/usr/local/niova &&
+      make -j 4 && make -j 4 check && sudo make install
+
 # default build
     - name: prepare default build
       run: ./prepare.sh
     - name: configure
-      run: ./configure
+      run: ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova
     - name: make
       run: make -j 4
     - name: make check (default)
@@ -42,6 +56,7 @@ jobs:
     - name: Dump logs if failure
       run: find test -name \*.log -exec cat {} \;
       if: ${{ failure() }}
+
 # asan build
     - name: distclean
       run: make distclean
@@ -56,6 +71,7 @@ jobs:
     - name: Dump logs if failure
       run: find test -name \*.log -exec cat {} \;
       if: ${{ failure() }}
+
 # clang build
     - name: distclean
       run: make distclean
@@ -70,6 +86,7 @@ jobs:
     - name: Dump logs if failure
       run: find test -name \*.log -exec cat {} \;
       if: ${{ failure() }}
+
 # other targets
     - name: uncrustify version (debug)
       run: uncrustify -v
