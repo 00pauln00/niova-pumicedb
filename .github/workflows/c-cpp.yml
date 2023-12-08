@@ -62,7 +62,7 @@ jobs:
     - name: prepare address sanitizer build
       run: ./prepare.sh
     - name: configure with address-sanitizer
-      run: ./configure --enable-asan --enable-devel
+      run: ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --enable-asan --enable-devel
     - name: make
       run: make -j 4
     - name: make check (asan)
@@ -77,7 +77,7 @@ jobs:
     - name: prepare clang build
       run: ./prepare.sh
     - name: configure CC=clang
-      run: ./configure CC=clang
+      run: ./configure CC=clang LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova
     - name: make
       run: make -j 4
     - name: make check (clang)
