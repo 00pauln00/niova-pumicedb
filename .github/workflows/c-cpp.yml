@@ -10,7 +10,6 @@ jobs:
   build:
     timeout-minutes: 30
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: apt update
