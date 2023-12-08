@@ -7,6 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
+  build:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
@@ -34,13 +35,13 @@ jobs:
 
 # niova-core submodule init
     - name: submodule init (niova-core)
-    run: cd niova-core && git submodule init && git submodule update
+      run: cd niova-core && git submodule init && git submodule update
 
 # build niova-core
      - name: build niova-core
-      run: git submodule update && cd niova-core/ && ./prepare.sh &&
-      ./configure --enable-devel --prefix=/usr/local/niova &&
-      make -j 4 && make -j 4 check && sudo make install
+       run: git submodule update && cd niova-core/ && ./prepare.sh &&
+       ./configure --enable-devel --prefix=/usr/local/niova &&
+       make -j 4 && make -j 4 check && sudo make install
 
 # default build
     - name: prepare default build
