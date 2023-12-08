@@ -33,16 +33,14 @@ src_libniova_pumice_client_la_SOURCES = \
 	src/pumice_db_client.c
 
 my_libexec_PROGRAMS += test/pumice-reference-client
-test_pumice_reference_client_SOURCES =  \
-	test/pumice-reference-client.c
-test_pumice_reference_client_LDADD = \
-	$(NIOVA_RAFT_CLIENT_LIBS) $(NIOVA_PUMICE_CLIENT_LIBS)
+test_pumice_reference_client_SOURCES = test/pumice-reference-client.c
+#test_pumice_reference_client_LIBADD = libniova_pumice_client.la
+test_pumice_reference_client_LDADD = $(NIOVA_RAFT_CLIENT_LIBS) src/libniova_pumice_client.la
 
 my_libexec_PROGRAMS += test/pumice-reference-server
-test_pumice_reference_server_SOURCES =  \
-	test/pumice-reference-server.c
-test_pumice_reference_server_LDADD = \
-	$(ROCKSDB_LIBS) $(NIOVA_RAFT_LIBS) $(NIOVA_PUMICE)
+test_pumice_reference_server_SOURCES = test/pumice-reference-server.c
+#test_pumice_reference_server_LIBADD = libniova_pumice.la
+test_pumice_reference_server_LDADD = $(ROCKSDB_LIBS) $(NIOVA_RAFT_LIBS) src/libniova_pumice.la
 
 libniova_pumice_includedir = $(includedir)/niova/
 libniova_pumice_include_HEADERS = src/include/pumice_db_net.h \
