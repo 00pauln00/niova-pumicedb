@@ -5,12 +5,6 @@
 [submodule "go/pumiceDB/examples/niovakv/lkvt"]
 	path = go/pumiceDB/examples/niovaKV/lkvt
 	url = http://github.com/00pauln00/lkvt
-[submodule "niova-core"]
-	path = niova-core
-	url = https://github.com/00pauln00/niova-core.git
-[submodule "holon"]
-	path = holon
-	url = https://github.com/00pauln00/holon.git
 [submodule "modules/holon"]
 	path = modules/holon
 	url = https://github.com/00pauln00/holon.git
