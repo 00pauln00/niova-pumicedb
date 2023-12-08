@@ -20,7 +20,7 @@ AS_IF([test "x$with_niova" = xno],
        NIOVA_CPPFLAGS=""
        NIOVA_LDFLAGS=""],
       [NIOVA_CFLAGS=""
-       NIOVA_CPPFLAGS="-I${NIOVA_PATH}/include"
+       NIOVA_CPPFLAGS="-I${NIOVA_PATH}/include -I${NIOVA_PATH}/include/niova"
        NIOVA_LDFLAGS="-L${NIOVA_PATH}/lib"])
 
 AC_SUBST([NIOVA_CFLAGS])
