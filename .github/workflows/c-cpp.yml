@@ -39,9 +39,11 @@ jobs:
 
 # build niova-core
     - name: build niova-core
-      run: git submodule update && cd niova-core/ && ./prepare.sh &&
-      ./configure --enable-devel --prefix=/usr/local/niova &&
-      make -j 4 && make -j 4 check && sudo make install
+      run: git submodule update &&
+      	   cd niova-core/ &&
+	   ./prepare.sh &&
+	   ./configure --enable-devel --prefix=/usr/local/niova &&
+      	   make -j 4 && make -j 4 check && sudo make install
 
 # default build
     - name: prepare default build
