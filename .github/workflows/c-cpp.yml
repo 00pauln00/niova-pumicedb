@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: apt update
       run: sudo apt update
     - name: dpkg / rpm prep (debug)
@@ -41,6 +41,12 @@ jobs:
     - name: build niova-core
       run: git submodule update && cd modules/niova-core/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova &&
+        make -j 4 && make -j 4 check && sudo make install
+
+# build niova-raft
+    - name: build niova-raft
+      run: git submodule update && cd modules/niova-raft/ && ./prepare.sh &&
+        ./configure --with-niova=/usr/local/niova --enable-devel --prefix=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 
 # default build
