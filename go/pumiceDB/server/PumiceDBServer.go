@@ -45,6 +45,7 @@ type PmdbCbArgs struct {
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
+
 }
 
 type PmdbServerAPI interface {
@@ -336,7 +337,7 @@ func Decode(input unsafe.Pointer, output interface{},
 }
 
 // search a key in RocksDB
-func PmdbLookupKey(key string, key_len int64,
+func PmdbLookupKey(key []byte, key_len int64,
 	go_cf string) ([]byte, error) {
 
 	var goerr string
@@ -383,13 +384,13 @@ func PmdbLookupKey(key string, key_len int64,
 }
 
 // Public method of PmdbLookupKey
-func (*PmdbServerObject) LookupKey(key string, key_len int64,
+func (*PmdbServerObject) LookupKey(key []byte, key_len int64,
 	go_cf string) ([]byte, error) {
 	return PmdbLookupKey(key, key_len, go_cf)
 }
 
-func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
+func PmdbWriteKV(cbArgs PmdbCbArgs, key []byte,
+	key_len int64, value []byte, value_len int64, gocolfamily string) int {
 
 	//typecast go string to C char *
 	cf := GoToCString(gocolfamily)
@@ -403,12 +404,12 @@ func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 
 	C_value_len := GoToCSize_t(value_len)
 
-	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
+	capp_id := (*C.struct_raft_net_client_user_id)(cbArgs.UserID)
 
 	cf_handle := C.PmdbCfHandleLookup(cf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbWriteKV(capp_id, pmdb_handle, C_key, C_key_len, C_value, C_value_len, nil, unsafe.Pointer(cf_handle))
+	rc := C.PmdbWriteKV(capp_id, cbArgs.PmdbHandler, C_key, C_key_len, C_value, C_value_len, nil, unsafe.Pointer(cf_handle))
 	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
 	log.Trace("Seq Num for this write is - ", seqNum)
 	go_rc := int(rc)
@@ -423,15 +424,14 @@ func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 }
 
 // Public method of PmdbWriteKV
-func (*PmdbServerObject) WriteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
+func (*PmdbServerObject) WriteKV(cbArgs PmdbCbArgs, key []byte,
+	key_len int64, value []byte, value_len int64, gocolfamily string) int {
 
-	return PmdbWriteKV(app_id, pmdb_handle, key, key_len, value, value_len,
+	return PmdbWriteKV(cbArgs, key, key_len, value, value_len,
 		gocolfamily)
 }
 
-func PmdbReadKV(app_id unsafe.Pointer, key string,
+func PmdbReadKV(cbArgs PmdbCbArgs, key []byte,
 	key_len int64, gocolfamily string) ([]byte, error) {
 
 	go_value, err := PmdbLookupKey(key, key_len, gocolfamily)
@@ -441,10 +441,10 @@ func PmdbReadKV(app_id unsafe.Pointer, key string,
 }
 
 // Public method of PmdbReadKV
-func (*PmdbServerObject) ReadKV(app_id unsafe.Pointer, key string,
+func (*PmdbServerObject) ReadKV(cbArgs PmdbCbArgs, key []byte,
 	key_len int64, gocolfamily string) ([]byte, error) {
 
-	return PmdbReadKV(app_id, key, key_len, gocolfamily)
+	return PmdbReadKV(cbArgs, key, key_len, gocolfamily)
 }
 
 // Methods for range iterator
@@ -631,14 +631,14 @@ func pmdbFetchRange(key string, key_len int64,
 }
 
 // Public method for read all KV from the column family
-func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
+func (*PmdbServerObject) ReadAllKV(cbArgs PmdbCbArgs, key string,
 	key_len int64, bufSize int64, gocolfamily string) (map[string][]byte, string, error) {
 
 	return pmdbFetchAllKV(key, key_len, bufSize, gocolfamily)
 }
 
 // Public method for range read KV
-func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
+func (*PmdbServerObject) RangeReadKV(cbArgs PmdbCbArgs, key string,
 	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (map[string][]byte, string, uint64, bool, error) {
 
 	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
