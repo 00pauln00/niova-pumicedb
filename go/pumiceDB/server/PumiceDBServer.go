@@ -337,7 +337,7 @@ func Decode(input unsafe.Pointer, output interface{},
 }
 
 // search a key in RocksDB
-func PmdbLookupKey(key []byte, key_len int64,
+func PmdbLookupKey(keybyte []byte, key_len int64,
 	go_cf string) ([]byte, error) {
 
 	var goerr string
@@ -348,6 +348,7 @@ func PmdbLookupKey(key []byte, key_len int64,
 	err := GoToCString(goerr)
 
 	cf := GoToCString(go_cf)
+	key := string(keybyte)
 
 	//Convert go string to C char *
 	C_key := GoToCString(key)
@@ -389,17 +390,22 @@ func (*PmdbServerObject) LookupKey(key []byte, key_len int64,
 	return PmdbLookupKey(key, key_len, go_cf)
 }
 
-func PmdbWriteKV(cbArgs PmdbCbArgs, key []byte,
-	key_len int64, value []byte, value_len int64, gocolfamily string) int {
+func PmdbWriteKV(cbArgs PmdbCbArgs, keybyte []byte,
+	key_len int64, valuebyte []byte, value_len int64, gocolfamily string) int {
 
 	//typecast go string to C char *
 	cf := GoToCString(gocolfamily)
-
+	
+	key := string(keybyte)
 	C_key := GoToCString(key)
+	
+	value := string(valuebyte)
+        C_value := GoToCString(value)
+
 	log.Trace("Writing key to db :", key)
 	C_key_len := GoToCSize_t(key_len)
 
-	C_value := GoToCString(value)
+	C_value = GoToCString(value)
 	log.Trace("Writing value to db :", value)
 
 	C_value_len := GoToCSize_t(value_len)

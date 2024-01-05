@@ -414,7 +414,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 	// Length of value.
 	valLen := len(byteToStr)
 	keyLength := len(handler.LeaseReq.Resource.String())
-	rc := handler.LeaseServerObj.Pso.WriteKV(*handler.UserID, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
+	rc := handler.LeaseServerObj.Pso.WriteKV(*handler.UserID, handler.LeaseReq.Resource.Bytes(), int64(keyLength), valueBytes.Bytes(), int64(valLen), handler.LeaseServerObj.LeaseColmFam)
 	if rc < 0 {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb")
@@ -468,7 +468,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		byteToStr := string(valueBytes.Bytes())
 		valLen := len(byteToStr)
 		rc := handler.LeaseServerObj.Pso.WriteKV(*handler.UserID,
-			resource.String(), int64(len(resource.String())), byteToStr, int64(valLen),
+			resource.Bytes(), int64(len(resource.String())), valueBytes.Bytes(), int64(valLen),
 			handler.LeaseServerObj.LeaseColmFam)
 		if rc < 0 {
 			log.Error("Expired lease update to RocksDB failed")

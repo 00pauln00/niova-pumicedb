@@ -77,7 +77,7 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	appKeyLen := len(fpAppKey)
 
 	//Lookup for the key if it is already present.
-	prevValue, err := fpso.pso.LookupKey(fpAppKey, int64(appKeyLen), colmfamily)
+	prevValue, err := fpso.pso.LookupKey([]byte(fpAppKey), int64(appKeyLen), colmfamily)
 
 	//If previous value is not null, update value of votes.
 	if err == nil {
@@ -98,8 +98,8 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	appValLen := len(fpAppValue)
 
 	//Write key,values.
-	rc := fpso.pso.WriteKV(*applyArgs, fpAppKey,
-		int64(appKeyLen), fpAppValue,
+	rc := fpso.pso.WriteKV(*applyArgs, []byte(fpAppKey),
+		int64(appKeyLen), []byte(fpAppValue),
 		int64(appValLen), colmfamily)
 
 	return int64(rc)
@@ -122,7 +122,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	fappKey := strconv.Itoa(int(readReqData.RestaurantId))
 	fappKeyLen := len(fappKey)
 
-	result, readErr := fpso.pso.ReadKV(*readArgs, fappKey,
+	result, readErr := fpso.pso.ReadKV(*readArgs, []byte(fappKey),
 		int64(fappKeyLen), colmfamily)
 	if readErr == nil {
 		//Split the result to get respective values.
