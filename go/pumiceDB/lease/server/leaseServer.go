@@ -10,7 +10,6 @@ import (
 	PumiceDBServer "niova/go-pumicedb-lib/server"
 	"sync"
 	"time"
-	"unsafe"
 	"errors"
 )
 
@@ -43,8 +42,7 @@ type LeaseServerReqHandler struct {
 	LeaseServerObj *LeaseServerObject
 	LeaseReq       leaseLib.LeaseReq
 	LeaseRes       *leaseLib.LeaseRes
-	UserID         unsafe.Pointer
-	PmdbHandler    unsafe.Pointer
+	UserID         *PumiceDBServer.PmdbCbArgs
 }
 
 //Helper functions
@@ -416,7 +414,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 	// Length of value.
 	valLen := len(byteToStr)
 	keyLength := len(handler.LeaseReq.Resource.String())
-	rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
+	rc := handler.LeaseServerObj.Pso.WriteKV(*handler.UserID, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
 	if rc < 0 {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb")
@@ -469,7 +467,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 
 		byteToStr := string(valueBytes.Bytes())
 		valLen := len(byteToStr)
-		rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler,
+		rc := handler.LeaseServerObj.Pso.WriteKV(*handler.UserID,
 			resource.String(), int64(len(resource.String())), byteToStr, int64(valLen),
 			handler.LeaseServerObj.LeaseColmFam)
 		if rc < 0 {
@@ -498,8 +496,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		LeaseServerObj: lso,
 		LeaseReq:       applyLeaseReq,
 		LeaseRes:       &returnObj,
-		UserID:         applyArgs.UserID,
-		PmdbHandler:    applyArgs.PmdbHandler,
+		UserID:         applyArgs,
 	}
 
 	//Handle GC request
@@ -545,8 +542,8 @@ func (lso *LeaseServerObject) leaderInit() {
 	}
 }
 
-func (lso *LeaseServerObject) peerBootup(userID unsafe.Pointer) {
-	readResult, _, _ := lso.Pso.ReadAllKV(userID, "", 0, 0, lso.LeaseColmFam)
+func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
+	readResult, _, _ := lso.Pso.ReadAllKV(*cbArgs, "", 0, 0, lso.LeaseColmFam)
 
 	//Result of the read
 	for key, value := range readResult {
@@ -691,7 +688,7 @@ func (lso *LeaseServerObject) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 		lso.leaderInit()
 	case PumiceDBServer.INIT_BOOTUP_STATE:
 		log.Info("Init callback on peer bootup.")
-		lso.peerBootup(initPeerArgs.UserID)
+		lso.peerBootup(initPeerArgs)
 	case PumiceDBServer.INIT_BECOMING_CANDIDATE_STATE:
 		log.Info("Init callback on peer becoming candidate.")
 	default:
