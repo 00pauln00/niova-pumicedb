@@ -183,7 +183,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	rc := cso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
+	rc := cso.pso.WriteKV(*applyArgs,
 		applyCovid.Location,
 		int64(keyLength), covidDataVal,
 		int64(covidDataLen), colmfamily)
@@ -210,7 +210,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Key length: ", keyLen)
 
 	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
-	readRsult, readErr := cso.pso.ReadKV(readArgs.UserID, reqStruct.Location,
+	readRsult, readErr := cso.pso.ReadKV(*readArgs, reqStruct.Location,
 		int64(keyLen), colmfamily)
 
 	var splitValues []string
