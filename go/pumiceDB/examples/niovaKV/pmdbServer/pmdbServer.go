@@ -151,7 +151,7 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	valLen := len(byteToStr)
 
 	log.Trace("Write the KeyValue by calling PmdbWriteKV")
-	rc := nso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
+	rc := nso.pso.WriteKV(*applyArgs,
 		applyNiovaKV.Key,
 		int64(keyLength), byteToStr,
 		int64(valLen), colmfamily)
@@ -178,7 +178,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Trace("Key length: ", keyLen)
 
 	//Pass the work as key to PmdbReadKV and get the value from pumicedb
-	readResult, readErr := nso.pso.ReadKV(readArgs.UserID, reqStruct.Key,
+	readResult, readErr := nso.pso.ReadKV(*readArgs, reqStruct.Key,
 		int64(keyLen), colmfamily)
 	var valType []byte
 	var replySize int64

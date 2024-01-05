@@ -98,7 +98,7 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	appValLen := len(fpAppValue)
 
 	//Write key,values.
-	rc := fpso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler, fpAppKey,
+	rc := fpso.pso.WriteKV(*applyArgs, fpAppKey,
 		int64(appKeyLen), fpAppValue,
 		int64(appValLen), colmfamily)
 
@@ -122,7 +122,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	fappKey := strconv.Itoa(int(readReqData.RestaurantId))
 	fappKeyLen := len(fappKey)
 
-	result, readErr := fpso.pso.ReadKV(readArgs.UserID, fappKey,
+	result, readErr := fpso.pso.ReadKV(*readArgs, fappKey,
 		int64(fappKeyLen), colmfamily)
 	if readErr == nil {
 		//Split the result to get respective values.
