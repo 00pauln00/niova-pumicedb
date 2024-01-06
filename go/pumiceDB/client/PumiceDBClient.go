@@ -94,7 +94,7 @@ func getPmdbReq(reqArgs *PmdbReqArgs) (unsafe.Pointer, int64) {
 }
 
 //Write KV from client.
-func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) (unsafe.Pointer, error) {
+func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) error {
 
 	var rBytes bytes.Buffer
 	var err error
@@ -102,7 +102,7 @@ func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) (unsafe.Pointer, error) {
 	enc := gob.NewEncoder(&rBytes)
 	err = enc.Encode(reqArgs.ReqED)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	reqArgs.ReqByteArr = rBytes.Bytes()
@@ -116,15 +116,14 @@ func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) (unsafe.Pointer, error) {
 
 	//Perform the write
 	return obj.writeKV(reqArgs.Rncui, ekey, reqLen, getResC,
-		reqArgs.ReplySize)
+		reqArgs.ReplySize, reqArgs)
 }
 
 //WriteEncoded
 /*
 WriteEncoded allows client to pass the encoded KV struct for writing
 */
-func (obj *PmdbClientObj) WriteEncoded(reqArgs *PmdbReqArgs) (unsafe.Pointer,
-	error) {
+func (obj *PmdbClientObj) WriteEncoded(reqArgs *PmdbReqArgs) error {
 	//Convert it to unsafe pointer (void * for C function)
 	eData := unsafe.Pointer(&reqArgs.ReqByteArr[0])
 	reqLen := int64(len(reqArgs.ReqByteArr))
@@ -132,13 +131,12 @@ func (obj *PmdbClientObj) WriteEncoded(reqArgs *PmdbReqArgs) (unsafe.Pointer,
 	getResC := (C.int)(reqArgs.GetResponse)
 	return obj.writeKV(reqArgs.Rncui, eReq, reqLen,
 		getResC,
-		reqArgs.ReplySize)
+		reqArgs.ReplySize, reqArgs)
 }
 
 func (obj *PmdbClientObj) WriteEncodedAndGetResponse(reqArgs *PmdbReqArgs) error {
 	var replySize int64
 	var wr_err error
-	var replyB unsafe.Pointer
 
 	//Convert to unsafe pointer (void * for C function)
 	eData := unsafe.Pointer(&reqArgs.ReqByteArr[0])
@@ -146,19 +144,12 @@ func (obj *PmdbClientObj) WriteEncodedAndGetResponse(reqArgs *PmdbReqArgs) error
 	eReq := (*C.char)(eData)
 	getResC := (C.int)(reqArgs.GetResponse)
 
-	replyB, wr_err = obj.writeKV(reqArgs.Rncui, eReq,
-		reqLen, getResC, &replySize)
+	wr_err = obj.writeKV(reqArgs.Rncui, eReq,
+		reqLen, getResC, &replySize, reqArgs)
 	if wr_err != nil {
 		return wr_err
 	}
 
-	if replyB != nil {
-		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
-		buffer := bytes.NewBuffer(bytes_data)
-		*reqArgs.Response = buffer.Bytes()
-	}
-	// Free the buffer allocated by the C library
-	C.free(replyB)
 	return nil
 }
 
@@ -263,7 +254,6 @@ func (obj *PmdbClientObj) ReadZeroCopy(reqArgs *PmdbReqArgs) error {
 
 //Get the Leader UUID.
 func (pmdb_client *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
-
 	var leader_info C.raft_client_leader_info_t
 	Cpmdb := (C.pmdb_t)(pmdb_client.pmdb)
 
@@ -281,38 +271,46 @@ func (pmdb_client *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 // If application expects response on write operation,
 // get_response should be 1
 func (obj *PmdbClientObj) writeKV(rncui string, key *C.char,
-	keyLen int64, get_response C.int,
-	replySize *int64) (unsafe.Pointer, error) {
+    keyLen int64, get_response C.int,
+    replySize *int64, reqArgs *PmdbReqArgs) error {
 
-	var obj_stat C.pmdb_obj_stat_t
+    var obj_stat C.pmdb_obj_stat_t
 
-	rncuiStrC := GoToCString(rncui)
-	defer FreeCMem(rncuiStrC)
+    rncuiStrC := GoToCString(rncui)
+    defer FreeCMem(rncuiStrC)
 
-	keyLenC := GoToCSize_t(keyLen)
+    keyLenC := GoToCSize_t(keyLen)
 
-	var rncui_id C.struct_raft_net_client_user_id
+    var rncui_id C.struct_raft_net_client_user_id
 
-	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
-	var obj_id *C.pmdb_obj_id_t
+    C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
+    var obj_id *C.pmdb_obj_id_t
 
-	obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
+    obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
 
-	rc := C.PmdbObjPut(obj.pmdb, obj_id, key, keyLenC, get_response,
-		&obj_stat)
+    rc := C.PmdbObjPut(obj.pmdb, obj_id, key, keyLenC, get_response,
+        &obj_stat)
 
-	if rc != 0 {
-		return nil, fmt.Errorf("PmdbObjPut(): %d", rc)
-	}
+    if rc != 0 {
+        return fmt.Errorf("PmdbObjPut(): %d", rc)
+    }
 
-	get_response_go := int(get_response)
-	if get_response_go == 1 {
-		reply_buf := obj_stat.reply_buffer
-		*replySize = int64(obj_stat.reply_size)
-		return reply_buf, nil
-	}
+    get_response_go := int(get_response)
+    if get_response_go == 1 {
+        replySizeVal := int64(obj_stat.reply_size)
 
-	return nil, nil
+        // Convert the unsafe.Pointer to a []byte
+        replyBytes := C.GoBytes(obj_stat.reply_buffer, C.int(replySizeVal))
+
+	buffer := bytes.NewBuffer(replyBytes)
+	*reqArgs.Response = buffer.Bytes()
+	
+	// Free the buffer allocated by the C library
+	C.free(obj_stat.reply_buffer)
+
+    }
+
+    return nil
 }
 
 //Call the pmdb C library function to read the value for the key.
