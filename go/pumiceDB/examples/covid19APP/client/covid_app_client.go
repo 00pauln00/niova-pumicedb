@@ -522,7 +522,7 @@ func (wrObj *wrOne) exec() error {
 		ReplySize: &replySize,
 	}
 	//Perform write Operation.
-	_, err := wrObj.op.cliObj.Write(reqArgs)
+	err := wrObj.op.cliObj.Write(reqArgs)
 
 	if err != nil {
 		errMsg = errors.New("exec() method failed for WriteOne.")
@@ -719,7 +719,7 @@ func (wmObj *wrMul) exec() error {
 		reqArgs.GetResponse = 0
 		reqArgs.ReplySize = &replySize
 
-		_, err := wmObj.op.cliObj.Write(&reqArgs)
+		err := wmObj.op.cliObj.Write(&reqArgs)
 		if err != nil {
 			wmData.Status = -1
 			log.Info("Write key-value failed : ", err)

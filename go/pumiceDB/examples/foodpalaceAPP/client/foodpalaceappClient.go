@@ -349,7 +349,7 @@ func (woexc *writeOne) exec() error {
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	_, err := woexc.rq.clientObj.Write(reqArgs)
+	err := woexc.rq.clientObj.Write(reqArgs)
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -481,7 +481,7 @@ func (wme *writeMulti) exec() error {
 		reqArgs.ReplySize = &replySize
 		reqArgs.GetResponse = 0
 
-		_, err := wme.rq.clientObj.Write(&reqArgs)
+		err := wme.rq.clientObj.Write(&reqArgs)
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
