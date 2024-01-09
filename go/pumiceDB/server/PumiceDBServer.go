@@ -45,7 +45,6 @@ type PmdbCbArgs struct {
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
-
 }
 
 type PmdbServerAPI interface {
@@ -337,7 +336,7 @@ func Decode(input unsafe.Pointer, output interface{},
 }
 
 // search a key in RocksDB
-func PmdbLookupKey(keybyte []byte, key_len int64,
+func PmdbLookupKey(key []byte, key_len int64,
 	go_cf string) ([]byte, error) {
 
 	var goerr string
@@ -348,11 +347,8 @@ func PmdbLookupKey(keybyte []byte, key_len int64,
 	err := GoToCString(goerr)
 
 	cf := GoToCString(go_cf)
-	key := string(keybyte)
-
-	//Convert go string to C char *
-	C_key := GoToCString(key)
-
+	
+	C_key := C.CString(string(key))
 	C_key_len := GoToCSize_t(key_len)
 
 	//Get the column family handle
@@ -390,24 +386,19 @@ func (*PmdbServerObject) LookupKey(key []byte, key_len int64,
 	return PmdbLookupKey(key, key_len, go_cf)
 }
 
-func PmdbWriteKV(cbArgs PmdbCbArgs, keybyte []byte,
-	key_len int64, valuebyte []byte, value_len int64, gocolfamily string) int {
+func PmdbWriteKV(cbArgs PmdbCbArgs, key []byte,
+	key_len int64, value []byte, value_len int64, gocolfamily string) int {
 
 	//typecast go string to C char *
 	cf := GoToCString(gocolfamily)
 	
-	key := string(keybyte)
-	C_key := GoToCString(key)
+	C_key := C.CString(string(key))
+	C_value := C.CString(string(value))
 	
-	value := string(valuebyte)
-        C_value := GoToCString(value)
-
 	log.Trace("Writing key to db :", key)
-	C_key_len := GoToCSize_t(key_len)
-
-	C_value = GoToCString(value)
 	log.Trace("Writing value to db :", value)
 
+	C_key_len := GoToCSize_t(key_len)
 	C_value_len := GoToCSize_t(value_len)
 
 	capp_id := (*C.struct_raft_net_client_user_id)(cbArgs.UserID)
