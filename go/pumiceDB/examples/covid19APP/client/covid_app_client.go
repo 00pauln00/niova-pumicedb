@@ -703,47 +703,49 @@ func (wmObj *wrMul) prepare() error {
   from csv file and dump to json file.
 */
 func (wmObj *wrMul) exec() error {
+    var wErr error
+    var wmData = &covidVaxData{}
+    var replySize int64
 
-	var wErr error
-	var wmData = &covidVaxData{}
-	var replySize int64
-	var reqArgs PumiceDBClient.PmdbReqArgs
+    for csvStruct := range writeMultiMap {
+        rncui := getRncui(keyRncuiMap, &csvStruct)
+        wmObj.op.key = csvStruct.Location
+        wmObj.op.rncui = rncui
 
-	for csvStruct := range writeMultiMap {
-		rncui := getRncui(keyRncuiMap, &csvStruct)
-		wmObj.op.key = csvStruct.Location
-		wmObj.op.rncui = rncui
+        reqArgs := PumiceDBClient.PmdbReqArgs{
+            Rncui:       rncui,
+            ReqED:       &csvStruct,
+            GetResponse: 0,
+            Response:    &[]byte{},
+            ReplySize:   &replySize,
+        }
 
-		reqArgs.Rncui = rncui
-		reqArgs.ReqED = &csvStruct
-		reqArgs.GetResponse = 0
-		reqArgs.ReplySize = &replySize
+        err := wmObj.op.cliObj.Write(&reqArgs)
+        if err != nil {
+            wmData.Status = -1
+            log.Info("Write key-value failed: ", err)
+            // Update the error message if needed
+            wErr = errors.New("some or all WriteMulti operations failed")
+        } else {
+            log.Info("Pmdb Write successful!")
+            wmData.Status = 0
+        }
+        wmData.fillWriteMulti(wmObj)
+    }
 
-		err := wmObj.op.cliObj.Write(&reqArgs)
-		if err != nil {
-			wmData.Status = -1
-			log.Info("Write key-value failed : ", err)
-			wErr = errors.New("exec() method failed for WriteMulti Operation.")
-		} else {
-			log.Info("Pmdb Write successful!")
-			wmData.Status = 0
-			wErr = nil
-		}
-		wmData.fillWriteMulti(wmObj)
-	}
+    // Dump structure into json.
+    wmObj.op.outfileName = wmData.dumpIntoJson(wmObj.op.outfileUuid)
 
-	//Dump structure into json.
-	wmObj.op.outfileName = wmData.dumpIntoJson(wmObj.op.outfileUuid)
-	KeyRncuiData := &KeyRncuiData{
-		KRMap: keyRncuiMap,
-	}
+    // Fill map in json file.
+    kRFname := jsonFilePath + "/" + "keyRncui.json"
+    file, _ := json.MarshalIndent(KeyRncuiData{KRMap: keyRncuiMap}, "", "\t")
+    if err := ioutil.WriteFile(kRFname, file, 0644); err != nil {
+        log.Error("Failed to write keyRncui.json: ", err)
+        // Update the error message if needed
+        wErr = errors.New("failed to write keyRncui.json")
+    }
 
-	//Fill map in json file.
-	kRFname := jsonFilePath + "/" + "keyRncui.json"
-	file, _ := json.MarshalIndent(KeyRncuiData, "", "\t")
-	_ = ioutil.WriteFile(kRFname, file, 0644)
-
-	return wErr
+    return wErr
 }
 
 /*

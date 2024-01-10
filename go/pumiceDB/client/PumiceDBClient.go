@@ -93,66 +93,35 @@ func getPmdbReq(reqArgs *PmdbReqArgs) (unsafe.Pointer, int64) {
 	return reqPtr, reqLen
 }
 
-//Write KV from client.
+// Write KV from client.
 func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) error {
+    var eData unsafe.Pointer
+    var reqLen int64
 
-	var rBytes bytes.Buffer
-	var err error
+    // Check if the request has already been encoded
+    if reqArgs.ReqByteArr != nil {
+        eData = unsafe.Pointer(&reqArgs.ReqByteArr[0])
+        reqLen = int64(len(reqArgs.ReqByteArr))
+    } else {
+        var rBytes bytes.Buffer
+        var err error
 
-	enc := gob.NewEncoder(&rBytes)
-	err = enc.Encode(reqArgs.ReqED)
-	if err != nil {
-		return err
-	}
-
-	reqArgs.ReqByteArr = rBytes.Bytes()
-
-	//Convert to unsafe pointer (void * for C function)
-	eData, reqLen := getPmdbReq(reqArgs)
-
-	//Typecast the encoded key to char*
-	ekey := (*C.char)(eData)
-	getResC := (C.int)(reqArgs.GetResponse)
-
-	//Perform the write
-	return obj.writeKV(reqArgs.Rncui, ekey, reqLen, getResC,
-		reqArgs.ReplySize, reqArgs)
-}
-
-//WriteEncoded
-/*
-WriteEncoded allows client to pass the encoded KV struct for writing
-*/
-func (obj *PmdbClientObj) WriteEncoded(reqArgs *PmdbReqArgs) error {
-	//Convert it to unsafe pointer (void * for C function)
-	eData := unsafe.Pointer(&reqArgs.ReqByteArr[0])
-	reqLen := int64(len(reqArgs.ReqByteArr))
-	eReq := (*C.char)(eData)
-	getResC := (C.int)(reqArgs.GetResponse)
-	return obj.writeKV(reqArgs.Rncui, eReq, reqLen,
-		getResC,
-		reqArgs.ReplySize, reqArgs)
-}
-
-func (obj *PmdbClientObj) WriteEncodedAndGetResponse(reqArgs *PmdbReqArgs) error {
-	var replySize int64
-	var wr_err error
-
-	//Convert to unsafe pointer (void * for C function)
-	eData := unsafe.Pointer(&reqArgs.ReqByteArr[0])
-	reqLen := int64(len(reqArgs.ReqByteArr))
-	eReq := (*C.char)(eData)
-	getResC := (C.int)(reqArgs.GetResponse)
-
-	wr_err = obj.writeKV(reqArgs.Rncui, eReq,
-		reqLen, getResC, &replySize, reqArgs)
-	if wr_err != nil {
-		return wr_err
-	}
-	
-	// Free the buffer allocated by the C library
-	C.free(eData)
-	return nil
+        enc := gob.NewEncoder(&rBytes)
+        err = enc.Encode(reqArgs.ReqED)
+        if err != nil {
+            return err
+        }
+        reqArgs.ReqByteArr = rBytes.Bytes()
+        // Convert to unsafe pointer (void * for C function)
+        eData, reqLen = getPmdbReq(reqArgs)
+    }
+    // Typecast the encoded key to char*
+    ekey := (*C.char)(eData)
+    getResC := (C.int)(reqArgs.GetResponse)
+    
+    // Perform the write
+    return obj.writeKV(reqArgs.Rncui, ekey, reqLen, getResC,
+        reqArgs.ReplySize, reqArgs)
 }
 
 //Read the value of key on the client
@@ -289,7 +258,7 @@ func (obj *PmdbClientObj) writeKV(rncui string, key *C.char,
     var obj_id *C.pmdb_obj_id_t
 
     obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
-
+    fmt.Println("obj_id is: ", obj_id, "key is: ", key, "keyLenC is: ", keyLenC, "get_response  is: ", get_response, "obj_stat is: ", &obj_stat)
     rc := C.PmdbObjPut(obj.pmdb, obj_id, key, keyLenC, get_response,
         &obj_stat)
 

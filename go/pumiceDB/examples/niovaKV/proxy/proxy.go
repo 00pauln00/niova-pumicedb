@@ -241,7 +241,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 		ReplySize:   &replySize,
 		GetResponse: 0,
 	}
-	err := handler.pmdbClientObj.WriteEncoded(reqArgs)
+	err := handler.pmdbClientObj.Write(reqArgs)
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
