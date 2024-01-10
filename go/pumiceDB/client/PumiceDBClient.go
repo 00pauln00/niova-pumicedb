@@ -149,7 +149,9 @@ func (obj *PmdbClientObj) WriteEncodedAndGetResponse(reqArgs *PmdbReqArgs) error
 	if wr_err != nil {
 		return wr_err
 	}
-
+	
+	// Free the buffer allocated by the C library
+	C.free(eData)
 	return nil
 }
 
@@ -297,17 +299,13 @@ func (obj *PmdbClientObj) writeKV(rncui string, key *C.char,
 
     get_response_go := int(get_response)
     if get_response_go == 1 {
-        replySizeVal := int64(obj_stat.reply_size)
+        replySize := int64(obj_stat.reply_size)
 
         // Convert the unsafe.Pointer to a []byte
-        replyBytes := C.GoBytes(obj_stat.reply_buffer, C.int(replySizeVal))
+        replyBytes := C.GoBytes(obj_stat.reply_buffer, C.int(replySize))
 
 	buffer := bytes.NewBuffer(replyBytes)
 	*reqArgs.Response = buffer.Bytes()
-	
-	// Free the buffer allocated by the C library
-	C.free(obj_stat.reply_buffer)
-
     }
 
     return nil
