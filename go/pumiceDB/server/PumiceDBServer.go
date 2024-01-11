@@ -54,6 +54,10 @@ type PmdbServerAPI interface {
 	Init(goCbArgs *PmdbCbArgs)
 }
 
+type AppDataDecoder interface {
+    GetAppDataFromReq(applyArgs, applyCovid interface{}) error
+}
+
 type LeaseServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
@@ -317,17 +321,21 @@ func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 	return PumiceDBCommon.Decode(input, output, len)
 }
 
-func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(input))
-	for {
-		if err := dec.Decode(output); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
+func (ps *PmdbServerObject) GetAppDataFromReq(goCbArgs *PmdbCbArgs, output interface{}) error {
+    return ps.DecodeApplicationReq(goCbArgs.Payload, output)
+}
 
-	return nil
+func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
+        dec := gob.NewDecoder(bytes.NewBuffer(input))
+        for {
+                if err := dec.Decode(output); err == io.EOF {
+                        break
+                } else if err != nil {
+                        return err
+                }
+        }
+
+        return nil
 }
 
 func Decode(input unsafe.Pointer, output interface{},
