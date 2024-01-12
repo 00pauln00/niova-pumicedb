@@ -1,6 +1,6 @@
-DIR=/tmp/
+DIR=/tmp/niova/
 CGO_LDFLAGS=-L/${DIR}/lib/
-CGO_CFLAGS=-I/${DIR}/include/niova/
+CGO_CFLAGS=-I/${DIR}/include/niova/ -I${DIR}/include/
 LD_LIBRARY_PATH=/${DIR}/niova-core/lib/
 COVERPKGS=../../../../pumiceDB/server,../../../../pumiceDB/common,../../../serf/agent,../../../../pumiceDB/lease/server,../../../../pumiceDB/lease/common
 

@@ -15,8 +15,8 @@ import (
 
 /*
 #cgo LDFLAGS: -lniova -lniova_raft_client -lniova_pumice_client
-#include <raft/pumice_db_client.h>
-#include <raft/pumice_db_net.h>
+#include <pumice_db_client.h>
+#include <pumice_db_net.h>
 */
 import "C"
 
@@ -95,6 +95,12 @@ func (p *PmdbReqArgs) GetpmdbResponse() *[]byte {
 // Setter method for response
 func (p *PmdbReqArgs) SetpmdbResponse(resp *[]byte) {
     p.response = resp
+}
+
+// Setter method for request
+func (p *PmdbReqArgs) SetPmdbRequestResponseBufs(request []byte, response *[]byte) {
+	p.request = request
+	p.response = response
 }
 
 //Get PumiceRequest in common format
@@ -400,6 +406,7 @@ func (obj *PmdbClientObj) readKVAny(key *C.char,
 
 	return replyB, nil
 }
+
 
 //Allocate memory in C heap
 func (obj *RDZeroCopyObj) AllocateCMem(size int64) unsafe.Pointer {
