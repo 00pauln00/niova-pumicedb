@@ -322,10 +322,10 @@ func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 }
 
 func (ps *PmdbServerObject) GetAppDataFromReq(goCbArgs *PmdbCbArgs, output interface{}) error {
-    return ps.DecodeApplicationReq(goCbArgs.Payload, output)
+    return ps.decodeApplicationReq(goCbArgs.Payload, output)
 }
 
-func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
+func (*PmdbServerObject) decodeApplicationReq(input []byte, output interface{}) error {
         dec := gob.NewDecoder(bytes.NewBuffer(input))
         for {
                 if err := dec.Decode(output); err == io.EOF {
