@@ -41,10 +41,10 @@ type PmdbCbArgs struct {
 	ReplyBuf    unsafe.Pointer
 	ReplySize   int64
 	InitState   int
-	Payload     []byte
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
+	PmdbRequest PumiceDBCommon.PumiceRequest
 }
 
 type PmdbServerAPI interface {
@@ -150,7 +150,7 @@ func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 		log.Error(err)
 		return -1
 	}
-	goCbArgs.Payload = request.ReqPayload
+	goCbArgs.PmdbRequest.ReqPayload = request.ReqPayload
 	return request.ReqType
 }
 
@@ -322,7 +322,7 @@ func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 }
 
 func (ps *PmdbServerObject) GetAppDataFromReq(goCbArgs *PmdbCbArgs, output interface{}) error {
-    return ps.decodeApplicationReq(goCbArgs.Payload, output)
+    return ps.decodeApplicationReq(goCbArgs.PmdbRequest.ReqPayload, output)
 }
 
 func (*PmdbServerObject) decodeApplicationReq(input []byte, output interface{}) error {
