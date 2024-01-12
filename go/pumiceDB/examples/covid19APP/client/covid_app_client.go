@@ -517,10 +517,13 @@ func (wrObj *wrOne) exec() error {
 
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: wrObj.op.rncui,
-		ReqED: wrObj.op.covidData,
+		IRequest: wrObj.op.covidData,
 		GetResponse: 0,
-		ReplySize: &replySize,
 	}
+	
+	// Set responseLen and response using the provided setter methods
+	reqArgs.SetResponseLen(&replySize)
+
 	//Perform write Operation.
 	err := wrObj.op.cliObj.Write(reqArgs)
 
@@ -593,8 +596,8 @@ func (rdObj *rdOne) exec() error {
 	//read Operation
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: "",
-		ReqED: rdObj.op.covidData,
-		ResponseED: resStruct,
+		IRequest: rdObj.op.covidData,
+		IResponse: resStruct,
 	}
 
 	err := rdObj.op.cliObj.Read(reqArgs)
@@ -713,12 +716,12 @@ func (wmObj *wrMul) exec() error {
         wmObj.op.rncui = rncui
 
         reqArgs := PumiceDBClient.PmdbReqArgs{
-            Rncui:       rncui,
-            ReqED:       &csvStruct,
-            GetResponse: 0,
-            Response:    &[]byte{},
-            ReplySize:   &replySize,
+            Rncui:        rncui,
+            IRequest:     &csvStruct,
+            GetResponse:  0,
         }
+	
+	reqArgs.SetResponseLen(&replySize)
 
         err := wmObj.op.cliObj.Write(&reqArgs)
         if err != nil {
@@ -816,8 +819,8 @@ func (rmObj *rdMul) exec() error {
 
 			resStruct := &CovidAppLib.CovidLocale{}
 			reqArgs.Rncui = ""
-			reqArgs.ReqED = rmObj.multiRead[i]
-			reqArgs.ResponseED = resStruct
+			reqArgs.IRequest = rmObj.multiRead[i]
+			reqArgs.IResponse = resStruct
 
 			err := rmObj.op.cliObj.Read(&reqArgs)
 
