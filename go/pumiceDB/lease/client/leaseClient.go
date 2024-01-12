@@ -67,7 +67,7 @@ func (clientObj LeaseClient) write(reqBytes *[]byte, rncui string, response *[]b
 		Response:    response,
 	}
 
-	err = clientObj.PmdbClientObj.WriteEncodedAndGetResponse(reqArgs)
+	err = clientObj.PmdbClientObj.Write(reqArgs)
 
 	return err
 }

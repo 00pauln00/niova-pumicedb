@@ -455,7 +455,7 @@ func (handler *proxyHandler) PutHandlerCB(request []byte, response *[]byte) erro
 			Response:    response,
 		}
 
-		err = handler.pmdbClientObj.WriteEncodedAndGetResponse(reqArgs)
+		err = handler.pmdbClientObj.Write(reqArgs)
 	} else {
 		reqArgs := &pmdbClient.PmdbReqArgs{
 			Rncui:       rncui,
@@ -464,7 +464,7 @@ func (handler *proxyHandler) PutHandlerCB(request []byte, response *[]byte) erro
 			ReplySize:   &replySize,
 		}
 
-		_, err = handler.pmdbClientObj.WriteEncoded(reqArgs)
+		err = handler.pmdbClientObj.Write(reqArgs)
 
 		var responseObj requestResponseLib.KVResponse
 		if err != nil {
