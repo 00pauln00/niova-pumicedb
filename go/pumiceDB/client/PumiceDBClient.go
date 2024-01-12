@@ -258,7 +258,6 @@ func (obj *PmdbClientObj) writeKV(rncui string, key *C.char,
     var obj_id *C.pmdb_obj_id_t
 
     obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
-    fmt.Println("obj_id is: ", obj_id, "key is: ", key, "keyLenC is: ", keyLenC, "get_response  is: ", get_response, "obj_stat is: ", &obj_stat)
     rc := C.PmdbObjPut(obj.pmdb, obj_id, key, keyLenC, get_response,
         &obj_stat)
 
