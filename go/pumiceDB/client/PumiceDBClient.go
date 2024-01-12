@@ -26,7 +26,7 @@ type PmdbReqArgs struct {
 	IResponse     interface{}     // Decode destination filled by 'response'
 	request       []byte
 	response      *[]byte
-	responseLen   *int64
+	responseLen   *int64 // !!! this should NOT be a pointer
 	GetResponse   int
 	ZeroCopyObj   *RDZeroCopyObj
 	AllowEmptyRncui bool
@@ -337,6 +337,10 @@ func (r *PmdbReqArgs) writeKV() error {
 		reply := C.GoBytes(ostat.reply_buffer, C.int(ostat.reply_size))
 
 		*r.response = bytes.NewBuffer(reply).Bytes()
+
+		if (r.responseLen != nil) {
+			*r.responseLen = int64(ostat.reply_size)
+		}
 	}
 
 	return nil
