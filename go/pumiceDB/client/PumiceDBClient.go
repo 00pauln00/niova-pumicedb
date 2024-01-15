@@ -26,7 +26,7 @@ type PmdbReqArgs struct {
 	IResponse     interface{}     // Decode destination filled by 'response'
 	request       []byte
 	response      *[]byte
-	responseLen   *int64
+	responseLen   int64
 	GetResponse   int
 	ZeroCopyObj   *RDZeroCopyObj
 }
@@ -75,24 +75,16 @@ func CToGoString(cstring *C.char) string {
 	return C.GoString(cstring)
 }
 
-// Getter method for responseLen
-func (p *PmdbReqArgs) GetResponseLen() *int64 {
-    return p.responseLen
+// Getter method for request, response, and responseLen
+func (p *PmdbReqArgs) GetPmdbData() ([]byte, *[]byte, int64) {
+    return p.request, p.response, p.responseLen
 }
 
-// Setter method for responseLen
-func (p *PmdbReqArgs) SetResponseLen(len *int64) {
-    p.responseLen = len
-}
-
-// Getter method for response
-func (p *PmdbReqArgs) GetpmdbResponse() *[]byte {
-    return p.response
-}
-
-// Setter method for response
-func (p *PmdbReqArgs) SetpmdbResponse(resp *[]byte) {
+// Setter method for request, response, and responseLen
+func (p *PmdbReqArgs) SetPmdbData(req []byte, resp *[]byte, len int64) {
+    p.request = req
     p.response = resp
+    p.responseLen = len
 }
 
 //Get PumiceRequest in common format
@@ -120,7 +112,7 @@ func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) error {
 
     // Check if the request has already been encoded
     if reqArgs.request != nil {
-        eData = unsafe.Pointer(&reqArgs.request[0])
+	           eData = unsafe.Pointer(&reqArgs.request[0])
         reqLen = int64(len(reqArgs.request))
     } else {
         var rBytes bytes.Buffer
@@ -263,7 +255,7 @@ func (pmdb_client *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 // get_response should be 1
 func (obj *PmdbClientObj) writeKV(rncui string, key *C.char,
     keyLen int64, get_response C.int,
-    replySize *int64, reqArgs *PmdbReqArgs) error {
+    replySize int64, reqArgs *PmdbReqArgs) error {
 
     var obj_stat C.pmdb_obj_stat_t
 

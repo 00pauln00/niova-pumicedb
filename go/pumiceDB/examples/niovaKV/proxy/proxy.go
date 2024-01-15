@@ -237,10 +237,10 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 	var replySize int64
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:       rncui,
-		ReqByteArr:  request,
-		ReplySize:   &replySize,
 		GetResponse: 0,
 	}
+	
+	reqArgs.SetPmdbData(request, nil, replySize)	
 	err := handler.pmdbClientObj.Write(reqArgs)
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
@@ -256,12 +256,10 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 
 //Read call definition for HTTP server
 func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
-
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:      "",
-		ReqByteArr: request,
-		Response:   response,
 	}
+	reqArgs.SetPmdbData(request, response, -1)	
 	return handler.pmdbClientObj.ReadEncoded(reqArgs)
 }
 

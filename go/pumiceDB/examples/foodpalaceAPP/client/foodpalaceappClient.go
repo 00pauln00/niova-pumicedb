@@ -342,12 +342,11 @@ func (woexc *writeOne) exec() error {
 
 	//Perform write operation.
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: 	 woexc.args[1],
-		ReqED: 	 woexc.rq.foodpalaceData,
-		ReplySize: &replySize,
-		GetResponse: 0,
+		Rncui: 	    woexc.args[1],
+		IRequest:   woexc.rq.foodpalaceData,
+		GetResponse: 0,	
 	}
-
+	reqArgs.SetPmdbData(nil, nil, replySize)
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
 	err := woexc.rq.clientObj.Write(reqArgs)
 	if err != nil {
@@ -403,8 +402,8 @@ func (roe *readOne) exec() error {
 	rop := &foodpalaceapplib.FoodpalaceData{}
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: "",
-		ReqED: roe.rq.foodpalaceData,
-		ResponseED: rop,
+		IRequest: roe.rq.foodpalaceData,
+		IResponse: rop,
 	}
 
 	err := roe.rq.clientObj.Read(reqArgs)
@@ -476,18 +475,12 @@ func (wme *writeMulti) exec() error {
 		wme.rq.rncui = rncui
 		reqArgs := PumiceDBClient.PmdbReqArgs{
 	            Rncui:       rncui,
-        	    ReqED:       wme.multiReqdata[i],
+        	    IRequest:       wme.multiReqdata[i],
 		    GetResponse: 0,
-		    Response:    &[]byte{},
-            	    ReplySize:   &replySize,
-        		}
+        	}
 
-		reqArgs.Rncui = rncui
-		reqArgs.ReqED = wme.multiReqdata[i]
-		reqArgs.ReplySize = &replySize
-		reqArgs.GetResponse = 0
-		reqArgs.Response = &[]byte{}
-
+		reqArgs.SetPmdbData(nil, nil, replySize)
+		
 		err := wme.rq.clientObj.Write(&reqArgs)
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
@@ -565,8 +558,8 @@ func (rme *readMulti) exec() error {
 			rmopDt := &foodpalaceapplib.FoodpalaceData{}
 			reqArgs = &PumiceDBClient.PmdbReqArgs {
 				Rncui: "",
-				ReqED: rme.rmData[i],
-				ResponseED: rmopDt,
+				IRequest: rme.rmData[i],
+				IResponse: rmopDt,
 			}
 			err := rme.rq.clientObj.Read(reqArgs)
 			if err != nil {

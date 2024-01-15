@@ -522,7 +522,7 @@ func (wrObj *wrOne) exec() error {
 	}
 	
 	// Set responseLen and response using the provided setter methods
-	reqArgs.SetResponseLen(&replySize)
+	reqArgs.SetPmdbData(nil, nil, replySize)
 
 	//Perform write Operation.
 	err := wrObj.op.cliObj.Write(reqArgs)
@@ -721,7 +721,7 @@ func (wmObj *wrMul) exec() error {
             GetResponse:  0,
         }
 	
-	reqArgs.SetResponseLen(&replySize)
+	reqArgs.SetPmdbData(nil, nil, replySize)
 
         err := wmObj.op.cliObj.Write(&reqArgs)
         if err != nil {
