@@ -61,12 +61,10 @@ func (clientObj LeaseClient) write(reqBytes *[]byte, rncui string, response *[]b
 
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:       rncui,
-		ReqByteArr:  *reqBytes,
 		GetResponse: 1,
-		ReplySize:   &replySize,
-		Response:    response,
 	}
 
+	reqArgs.SetPmdbData(*reqBytes, response, replySize)
 	err = clientObj.PmdbClientObj.Write(reqArgs)
 
 	return err
@@ -83,10 +81,8 @@ func (clientObj LeaseClient) read(reqBytes *[]byte, rncui string, response *[]by
 
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:      rncui,
-		ReqByteArr: *reqBytes,
-		Response:   response,
 	}
-
+	reqArgs.SetPmdbData(*reqBytes, response, -1)
 	return clientObj.PmdbClientObj.ReadEncoded(reqArgs)
 }
 
