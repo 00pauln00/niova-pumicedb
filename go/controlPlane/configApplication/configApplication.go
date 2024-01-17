@@ -212,14 +212,14 @@ func (handler *configApplication) Write(key string, data []byte) error {
 
 	enc := gob.NewEncoder(&requestBytes)
 	enc.Encode(request)
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	req := &pmdbClient.PmdbReqArgs{
 		Rncui:       request.Rncui,
-		ReqByteArr:  requestBytes.Bytes(),
 		GetResponse: 0,
-		ReplySize:   &replySize,
 	}
 
-	err := handler.pmdbClientObj.Write(reqArgs)
+	req.SetPmdbData(requestBytes.Bytes(), nil, replySize)
+
+	err := handler.pmdbClientObj.Write(req)
 	return err
 }
 
@@ -230,13 +230,11 @@ func (handler *configApplication) Read(key string, response *[]byte) error {
 	var requestBytes bytes.Buffer
 	enc := gob.NewEncoder(&requestBytes)
 	enc.Encode(request)
-	reqArgs := &pmdbClient.PmdbReqArgs{
-		Rncui:      "",
-		ReqByteArr: requestBytes.Bytes(),
-		Response:   response,
-	}
+	
+	var req pmdbClient.PmdbReqArgs	
+	req.SetPmdbData(requestBytes.Bytes(), response, -1)
 
-	return handler.pmdbClientObj.ReadEncoded(reqArgs)
+	return handler.pmdbClientObj.ReadEncoded(&req)
 }
 
 func main() {
