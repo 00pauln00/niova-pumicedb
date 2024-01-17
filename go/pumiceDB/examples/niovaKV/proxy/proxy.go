@@ -241,7 +241,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 	}
 
 	req.SetPmdbData(request, nil, replySize)
-	err := handler.pmdbClientObj.Write(req)
+	err := req.Write()
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
@@ -259,7 +259,7 @@ func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) erro
 	var req pmdbClient.PmdbReqArgs
 
 	req.SetPmdbData(request, response, -1)
-	return handler.pmdbClientObj.ReadEncoded(&req)
+	return req.Read()
 }
 
 func (handler *proxyHandler) start_HTTPServer() error {

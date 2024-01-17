@@ -348,7 +348,7 @@ func (woexc *writeOne) exec() error {
 	}
 	reqArgs.SetPmdbData(nil, nil, replySize)
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	err := woexc.rq.clientObj.Write(reqArgs)
+	err := reqArgs.Write()
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -406,7 +406,7 @@ func (roe *readOne) exec() error {
 		IResponse: rop,
 	}
 
-	err := roe.rq.clientObj.Read(reqArgs)
+	err := reqArgs.Read()
 	if err != nil {
 		log.Error("Read request failed !!", err)
 		rdt := &foodpalaceRqOp{Status: -1}
@@ -481,7 +481,7 @@ func (wme *writeMulti) exec() error {
 
 		reqArgs.SetPmdbData(nil, nil, replySize)
 		
-		err := wme.rq.clientObj.Write(&reqArgs)
+		err := reqArgs.Write()
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
@@ -561,7 +561,7 @@ func (rme *readMulti) exec() error {
 				IRequest: rme.rmData[i],
 				IResponse: rmopDt,
 			}
-			err := rme.rq.clientObj.Read(reqArgs)
+			err := reqArgs.Read()
 			if err != nil {
 				rmdte = &foodpalaceRqOp{Status: -1}
 				rmdte.fillRm(rme)

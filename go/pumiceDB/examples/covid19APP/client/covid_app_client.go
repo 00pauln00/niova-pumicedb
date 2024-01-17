@@ -525,7 +525,7 @@ func (wrObj *wrOne) exec() error {
 	reqArgs.SetPmdbData(nil, nil, replySize)
 
 	//Perform write Operation.
-	err := wrObj.op.cliObj.Write(reqArgs)
+	err := reqArgs.Write()
 
 	if err != nil {
 		errMsg = errors.New("exec() method failed for WriteOne.")
@@ -600,7 +600,7 @@ func (rdObj *rdOne) exec() error {
 		IResponse: resStruct,
 	}
 
-	err := rdObj.op.cliObj.Read(reqArgs)
+	err := reqArgs.Read()
 
 	if err != nil {
 
@@ -723,7 +723,7 @@ func (wmObj *wrMul) exec() error {
 	
 	reqArgs.SetPmdbData(nil, nil, replySize)
 
-        err := wmObj.op.cliObj.Write(&reqArgs)
+        err := reqArgs.Write()
         if err != nil {
             wmData.Status = -1
             log.Info("Write key-value failed: ", err)
@@ -822,7 +822,7 @@ func (rmObj *rdMul) exec() error {
 			reqArgs.IRequest = rmObj.multiRead[i]
 			reqArgs.IResponse = resStruct
 
-			err := rmObj.op.cliObj.Read(&reqArgs)
+			err := reqArgs.Read()
 
 			if err != nil {
 

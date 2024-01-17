@@ -219,7 +219,7 @@ func (handler *configApplication) Write(key string, data []byte) error {
 
 	req.SetPmdbData(requestBytes.Bytes(), nil, replySize)
 
-	err := handler.pmdbClientObj.Write(req)
+	err := req.Write()
 	return err
 }
 
@@ -234,7 +234,7 @@ func (handler *configApplication) Read(key string, response *[]byte) error {
 	var req pmdbClient.PmdbReqArgs	
 	req.SetPmdbData(requestBytes.Bytes(), response, -1)
 
-	return handler.pmdbClientObj.ReadEncoded(&req)
+	return req.Read()
 }
 
 func main() {

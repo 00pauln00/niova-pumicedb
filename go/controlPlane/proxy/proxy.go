@@ -452,14 +452,14 @@ func (handler *proxyHandler) PutHandlerCB(request []byte, response *[]byte) erro
 			GetResponse: 1,
 		}
 		req.SetPmdbData(request, response, replySize)
-		err = handler.pmdbClientObj.Write(req)
+		err = req.Write()
 	} else {
 		req := &pmdbClient.PmdbReqArgs{
 			Rncui:       rncui,
 			GetResponse: 0,
 		}
 		req.SetPmdbData(request, nil, replySize)
-		err = handler.pmdbClientObj.Write(req)
+		err = req.Write()
 
 		var responseObj requestResponseLib.KVResponse
 		if err != nil {
@@ -488,7 +488,7 @@ Description : Call back for PMDB read requests to HTTP server.
 func (handler *proxyHandler) GetHandlerCB(request []byte, response *[]byte) error {
 	var req pmdbClient.PmdbReqArgs
 	req.SetPmdbData(request, response, -1)
-	res := handler.pmdbClientObj.ReadEncoded(&req)
+	res := req.Read()
 	return res
 }
 
