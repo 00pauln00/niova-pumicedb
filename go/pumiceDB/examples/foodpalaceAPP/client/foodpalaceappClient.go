@@ -343,6 +343,7 @@ func (woexc *writeOne) exec() error {
 	//Perform write operation.
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: 	    woexc.args[1],
+		PmdbClientObj: woexc.rq.clientObj, 
 		IRequest:   woexc.rq.foodpalaceData,
 		GetResponse: 0,	
 	}
@@ -402,6 +403,7 @@ func (roe *readOne) exec() error {
 	rop := &foodpalaceapplib.FoodpalaceData{}
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: "",
+		PmdbClientObj: roe.rq.clientObj,
 		IRequest: roe.rq.foodpalaceData,
 		IResponse: rop,
 	}
@@ -475,6 +477,7 @@ func (wme *writeMulti) exec() error {
 		wme.rq.rncui = rncui
 		reqArgs := PumiceDBClient.PmdbReqArgs{
 	            Rncui:       rncui,
+		    PmdbClientObj: wme.rq.clientObj,
         	    IRequest:       wme.multiReqdata[i],
 		    GetResponse: 0,
         	}
@@ -558,6 +561,7 @@ func (rme *readMulti) exec() error {
 			rmopDt := &foodpalaceapplib.FoodpalaceData{}
 			reqArgs = &PumiceDBClient.PmdbReqArgs {
 				Rncui: "",
+				PmdbClientObj: rme.rq.clientObj,
 				IRequest: rme.rmData[i],
 				IResponse: rmopDt,
 			}

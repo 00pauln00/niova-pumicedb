@@ -516,6 +516,7 @@ func (wrObj *wrOne) exec() error {
 	var replySize int64
 
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
+		PmdbClientObj: wrObj.op.cliObj,
 		Rncui: wrObj.op.rncui,
 		IRequest: wrObj.op.covidData,
 		GetResponse: 0,
@@ -596,6 +597,7 @@ func (rdObj *rdOne) exec() error {
 	//read Operation
 	reqArgs := &PumiceDBClient.PmdbReqArgs {
 		Rncui: "",
+		PmdbClientObj: rdObj.op.cliObj,
 		IRequest: rdObj.op.covidData,
 		IResponse: resStruct,
 	}
@@ -716,6 +718,7 @@ func (wmObj *wrMul) exec() error {
         wmObj.op.rncui = rncui
 
         reqArgs := PumiceDBClient.PmdbReqArgs{
+	    PmdbClientObj: wmObj.op.cliObj,
             Rncui:        rncui,
             IRequest:     &csvStruct,
             GetResponse:  0,
@@ -819,6 +822,7 @@ func (rmObj *rdMul) exec() error {
 
 			resStruct := &CovidAppLib.CovidLocale{}
 			reqArgs.Rncui = ""
+			reqArgs.PmdbClientObj = rmObj.op.cliObj
 			reqArgs.IRequest = rmObj.multiRead[i]
 			reqArgs.IResponse = resStruct
 

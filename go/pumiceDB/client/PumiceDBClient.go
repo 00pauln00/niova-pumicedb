@@ -15,8 +15,8 @@ import (
 
 /*
 #cgo LDFLAGS: -lniova -lniova_raft_client -lniova_pumice_client
-#include <pumice_db_client.h>
-#include <pumice_db_net.h>
+#include <raft/pumice_db_client.h>
+#include <raft/pumice_db_net.h>
 */
 import "C"
 
@@ -30,7 +30,7 @@ type PmdbReqArgs struct {
 	GetResponse   int
 	ZeroCopyObj   *RDZeroCopyObj
 	AllowEmptyRncui bool
-	pmdbClientObj *PmdbClientObj
+	PmdbClientObj *PmdbClientObj
 }
 
 type PmdbClientObj struct {
@@ -167,11 +167,38 @@ func (r *PmdbReqArgs) getObjectID(o *C.pmdb_obj_id_t)  error {
 	return err
 }
 
-//Read the value of key on the client
+// Read performs the read operation for the given request arguments
 func (r *PmdbReqArgs) Read() error {
+        if r.PmdbClientObj == nil {
+                return fmt.Errorf("Missing pmdbClientObj")
+        }
 
-	rd_err := r.readKV()
-	return rd_err
+        // Make available r.request, encode user payload if not already
+        err := r.encodeRequestPayload()
+        if err != nil {
+                return err
+        }
+
+        // Encode the entire request
+        pmdbReqPtr, pmdbReqSz, pmdbErr := r.encodeRequest()
+        if pmdbErr != nil {
+                return pmdbErr
+        }
+
+        if pmdbReqPtr == nil {
+                return fmt.Errorf("encodeRequest() returned nil req pointer")
+        }
+
+        var rd_err error
+        var replySize int64
+
+        if len(r.Rncui) == 0 {
+                rd_err = r.readKVAny(pmdbReqPtr, pmdbReqSz, &replySize)
+        } else {
+                rd_err = r.readKV(r.Rncui, pmdbReqPtr, pmdbReqSz, &replySize)
+        }
+
+        return rd_err
 }
 
 //ReadEncoded
@@ -211,6 +238,59 @@ func (obj *PmdbClientObj) ReadEncoded(reqArgs *PmdbReqArgs) error {
 	return nil
 }
 */
+
+// readKV performs the read operation for the given request arguments with Rncui
+func (r *PmdbReqArgs) readKV(rncui string, key unsafe.Pointer, keyLen int64, replySize *int64) error {
+        var vsize C.size_t
+
+	var obj_id C.pmdb_obj_id_t
+
+	err := r.getObjectID(&obj_id)
+        if err != nil {
+                return err
+        }
+
+        replyB := C.PmdbObjGet(r.PmdbClientObj.pmdb, &obj_id, (*C.char)(key), GoToCSize_t(keyLen), &vsize)
+        if replyB == nil {
+                *replySize = 0
+                return errors.New("Key not found")
+        }
+        *replySize = int64(vsize)
+        // Decode the response
+    if err := PumiceDBCommon.Decode(unsafe.Pointer(replyB), r.IResponse, int64(vsize)); err != nil {
+        return fmt.Errorf("Failed to decode response: %v", err)
+    }
+    	C.free(replyB)
+	return nil
+}
+
+// readKVAny performs the read operation for the given request arguments without Rncui
+
+func (r *PmdbReqArgs) readKVAny(key unsafe.Pointer, keyLen int64, replySize *int64) error {
+    var vsize C.size_t
+
+    replyB := C.PmdbObjGetAny(r.PmdbClientObj.pmdb, (*C.char)(key), GoToCSize_t(keyLen), &vsize)
+
+    if replyB == nil {
+        *replySize = 0
+        return errors.New("Key not found")
+    }
+
+    *replySize = int64(vsize)
+
+    // Use r.ResponseED to decode the response if needed
+    // Example: err := PumiceDBCommon.Decode(unsafe.Pointer(replyB), r.ResponseED, int64(vsize))
+    // Check for any errors during decoding and handle accordingly
+    // Decode the response
+    if err := PumiceDBCommon.Decode(unsafe.Pointer(replyB), r.IResponse, int64(vsize)); err != nil {
+        return fmt.Errorf("Failed to decode response: %v", err)
+    }
+    // Free the buffer allocated by C library.
+    C.free(replyB)
+
+    return nil
+}
+
 //Read the value of key on the client the application passed buffer
 func (obj *PmdbClientObj) ReadZeroCopy(reqArgs *PmdbReqArgs) error {
 
@@ -248,7 +328,7 @@ func (pmdb_client *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 // If application expects response on write operation,
 // get_response should be 1
 func (r *PmdbReqArgs) writeKV() error {
-	if r.pmdbClientObj == nil {
+	if r.PmdbClientObj == nil {
 		return fmt.Errorf("Missing pmdbClientObj")
 	}
 
@@ -281,7 +361,7 @@ func (r *PmdbReqArgs) writeKV() error {
 	}
 
 	var ostat C.pmdb_obj_stat_t
-	rc := C.PmdbObjPut(r.pmdbClientObj.pmdb, &oid, (*C.char)(pmdbReqPtr),
+	rc := C.PmdbObjPut(r.PmdbClientObj.pmdb, &oid, (*C.char)(pmdbReqPtr),
 		C.size_t(pmdbReqSz), C.int(r.GetResponse), &ostat)
 
 	if rc != 0 {
@@ -296,50 +376,6 @@ func (r *PmdbReqArgs) writeKV() error {
 	}
 
 	return nil
-}
-
-//Call the pmdb C library function to read the value for the key.
-func (r *PmdbReqArgs) readKV() error {
-        if r.pmdbClientObj == nil {
-                return fmt.Errorf("Missing pmdbClientObj")
-        }
-
-        if r.Rncui == "" {
-                return fmt.Errorf("Missing rncui")
-        }
-
-        // Make available r.request, encode user payload it not already
-        err := r.encodeRequestPayload()
-        if err != nil {
-                return err
-        }
-
-        // Encode the entire request
-        pmdbReqPtr, pmdbReqSz, pmdbErr := r.encodeRequest()
-        if pmdbErr != nil {
-                return pmdbErr
-        }
-
-        if pmdbReqPtr == nil {
-                return fmt.Errorf("encodeRequest() returned nil req pointer")
-        }
-
-        var obj_id C.pmdb_obj_id_t
-
-        err = r.getObjectID(&obj_id)
-        if err != nil {
-                return err
-        }
-
-        var vsize C.size_t
-        replyB := C.PmdbObjGet(r.pmdbClientObj.pmdb, &obj_id, (*C.char)(pmdbReqPtr), C.size_t(pmdbReqSz), &vsize)
-
-        if replyB == nil {
-                err := errors.New("Key not found")
-                return err
-        }
-
-        return nil
 }
 
 //Allocate memory in C heap
