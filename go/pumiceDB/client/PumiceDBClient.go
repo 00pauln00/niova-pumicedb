@@ -89,26 +89,8 @@ func (p *PmdbReqArgs) SetPmdbData(req []byte, resp *[]byte, len int64) {
     p.responseLen = len
 }
 
-//Get PumiceRequest in common format
-func getPmdbReq(reqArgs *PmdbReqArgs) (unsafe.Pointer, int64) {
-	// get bytes for requestResponse.Request and
-	// convert PumiceDBCommon.PumiceRequest
-	var req PumiceDBCommon.PumiceRequest
-
-	req.ReqType = PumiceDBCommon.APP_REQ
-	req.ReqPayload = reqArgs.request
-
-	var reqLen int64
-	reqPtr, err := PumiceDBCommon.Encode(req, &reqLen)
-	if err != nil {
-		return nil, 0
-	}
-
-	return reqPtr, reqLen
-}
-
 func (r *PmdbReqArgs) Write() error {
-	return r.writeKV() // Perform the write
+	return r.writeInternal() // Perform the write
 }
 
 // Encode the user's portion of the request
@@ -193,9 +175,9 @@ func (r *PmdbReqArgs) Read() error {
         var replySize int64
 
         if len(r.Rncui) == 0 {
-                rd_err = r.readKVAny(pmdbReqPtr, pmdbReqSz, &replySize)
+                rd_err = r.readInternalAny(pmdbReqPtr, pmdbReqSz, &replySize)
         } else {
-                rd_err = r.readKV(r.Rncui, pmdbReqPtr, pmdbReqSz, &replySize)
+                rd_err = r.readInternal(r.Rncui, pmdbReqPtr, pmdbReqSz, &replySize)
         }
 
         return rd_err
@@ -240,7 +222,7 @@ func (obj *PmdbClientObj) ReadEncoded(reqArgs *PmdbReqArgs) error {
 */
 
 // readKV performs the read operation for the given request arguments with Rncui
-func (r *PmdbReqArgs) readKV(rncui string, key unsafe.Pointer, keyLen int64, replySize *int64) error {
+func (r *PmdbReqArgs) readInternal(rncui string, key unsafe.Pointer, keyLen int64, replySize *int64) error {
         var vsize C.size_t
 
 	var obj_id C.pmdb_obj_id_t
@@ -266,7 +248,7 @@ func (r *PmdbReqArgs) readKV(rncui string, key unsafe.Pointer, keyLen int64, rep
 
 // readKVAny performs the read operation for the given request arguments without Rncui
 
-func (r *PmdbReqArgs) readKVAny(key unsafe.Pointer, keyLen int64, replySize *int64) error {
+func (r *PmdbReqArgs) readInternalAny(key unsafe.Pointer, keyLen int64, replySize *int64) error {
     var vsize C.size_t
 
     replyB := C.PmdbObjGetAny(r.PmdbClientObj.pmdb, (*C.char)(key), GoToCSize_t(keyLen), &vsize)
@@ -327,7 +309,7 @@ func (pmdb_client *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 // Call the pmdb C library function to write the application data.
 // If application expects response on write operation,
 // get_response should be 1
-func (r *PmdbReqArgs) writeKV() error {
+func (r *PmdbReqArgs) writeInternal() error {
 	if r.PmdbClientObj == nil {
 		return fmt.Errorf("Missing pmdbClientObj")
 	}
