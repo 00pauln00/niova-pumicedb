@@ -238,6 +238,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 	req := &pmdbClient.PmdbReqArgs{
 		Rncui:       rncui,
 		GetResponse: 0,
+		PmdbClientObj: handler.pmdbClientObj,
 	}
 
 	req.SetPmdbData(request, nil, replySize)
@@ -257,7 +258,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 // Read call definition for HTTP server
 func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
 	var req pmdbClient.PmdbReqArgs
-
+	req.PmdbClientObj = handler.pmdbClientObj
 	req.SetPmdbData(request, response, -1)
 	return req.Read()
 }
