@@ -15,8 +15,8 @@ import (
 
 /*
 #cgo LDFLAGS: -lniova -lniova_raft_client -lniova_pumice_client
-#include <raft/pumice_db_client.h>
-#include <raft/pumice_db_net.h>
+#include <pumice_db_client.h>
+#include <pumice_db_net.h>
 */
 import "C"
 
