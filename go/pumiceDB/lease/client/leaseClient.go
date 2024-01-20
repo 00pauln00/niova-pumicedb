@@ -59,14 +59,14 @@ func (clientObj LeaseClient) write(reqBytes *[]byte, rncui string, response *[]b
 	var err error
 	var replySize int64
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	req := &pmdbClient.PmdbClientReq{
 		Rncui:       rncui,
 		GetResponse: 1,
 	}
 
-	reqArgs.SetPmdbData(*reqBytes, response, replySize)
+	req.SetPmdbData(*reqBytes, response, replySize)
 	
-	if err := reqArgs.Write(); err != nil {
+	if err := req.Write(); err != nil {
         	return err
     	}
 
@@ -82,11 +82,11 @@ Description : Wrapper function for ReadEncoded() function
 */
 func (clientObj LeaseClient) read(reqBytes *[]byte, rncui string, response *[]byte) error {
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	req := &pmdbClient.PmdbClientReq{
 		Rncui:      rncui,
 	}
-	reqArgs.SetPmdbData(*reqBytes, response, -1)
-	return reqArgs.Read()
+	req.SetPmdbData(*reqBytes, response, -1)
+	return req.Read()
 }
 
 /*

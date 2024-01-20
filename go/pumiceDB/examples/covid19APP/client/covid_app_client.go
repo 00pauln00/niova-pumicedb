@@ -515,7 +515,7 @@ func (wrObj *wrOne) exec() error {
 	var wrData = &covidVaxData{}
 	var replySize int64
 
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
+	req := &PumiceDBClient.PmdbClientReq {
 		PmdbClientObj: wrObj.op.cliObj,
 		Rncui: wrObj.op.rncui,
 		IRequest: wrObj.op.covidData,
@@ -523,10 +523,10 @@ func (wrObj *wrOne) exec() error {
 	}
 	
 	// Set responseLen and response using the provided setter methods
-	reqArgs.SetPmdbData(nil, nil, replySize)
+	req.SetPmdbData(nil, nil, replySize)
 
 	//Perform write Operation.
-	err := reqArgs.Write()
+	err := req.Write()
 
 	if err != nil {
 		errMsg = errors.New("exec() method failed for WriteOne.")
@@ -595,14 +595,14 @@ func (rdObj *rdOne) exec() error {
 	resStruct := &CovidAppLib.CovidLocale{}
 
 	//read Operation
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
+	req := &PumiceDBClient.PmdbClientReq {
 		Rncui: "",
 		PmdbClientObj: rdObj.op.cliObj,
 		IRequest: rdObj.op.covidData,
 		IResponse: resStruct,
 	}
 
-	err := reqArgs.Read()
+	err := req.Read()
 
 	if err != nil {
 
@@ -717,16 +717,16 @@ func (wmObj *wrMul) exec() error {
         wmObj.op.key = csvStruct.Location
         wmObj.op.rncui = rncui
 
-        reqArgs := PumiceDBClient.PmdbReqArgs{
+        req := PumiceDBClient.PmdbClientReq{
 	    PmdbClientObj: wmObj.op.cliObj,
             Rncui:        rncui,
             IRequest:     &csvStruct,
             GetResponse:  0,
         }
 	
-	reqArgs.SetPmdbData(nil, nil, replySize)
+	req.SetPmdbData(nil, nil, replySize)
 
-        err := reqArgs.Write()
+        err := req.Write()
         if err != nil {
             wmData.Status = -1
             log.Info("Write key-value failed: ", err)
@@ -814,19 +814,19 @@ func (rmObj *rdMul) exec() error {
 	var rErr error
 	//var reply_size int64
 	var rmData = &covidVaxData{}
-	var reqArgs PumiceDBClient.PmdbReqArgs
+	var req PumiceDBClient.PmdbClientReq
 
 	if len(rmObj.multiRead) == len(rmObj.rdRncui) {
 
 		for i := range rmObj.rdRncui {
 
 			resStruct := &CovidAppLib.CovidLocale{}
-			reqArgs.Rncui = ""
-			reqArgs.PmdbClientObj = rmObj.op.cliObj
-			reqArgs.IRequest = rmObj.multiRead[i]
-			reqArgs.IResponse = resStruct
+			req.Rncui = ""
+			req.PmdbClientObj = rmObj.op.cliObj
+			req.IRequest = rmObj.multiRead[i]
+			req.IResponse = resStruct
 
-			err := reqArgs.Read()
+			err := req.Read()
 
 			if err != nil {
 

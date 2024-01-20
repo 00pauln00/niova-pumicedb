@@ -341,15 +341,15 @@ func (woexc *writeOne) exec() error {
 	var replySize int64
 
 	//Perform write operation.
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
+	req := &PumiceDBClient.PmdbClientReq {
 		Rncui: 	    woexc.args[1],
 		PmdbClientObj: woexc.rq.clientObj, 
 		IRequest:   woexc.rq.foodpalaceData,
 		GetResponse: 0,	
 	}
-	reqArgs.SetPmdbData(nil, nil, replySize)
+	req.SetPmdbData(nil, nil, replySize)
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	err := reqArgs.Write()
+	err := req.Write()
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -401,14 +401,14 @@ func (roe *readOne) exec() error {
 	var roerr error
 	//Perform read operation.
 	rop := &foodpalaceapplib.FoodpalaceData{}
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
+	req := &PumiceDBClient.PmdbClientReq {
 		Rncui: "",
 		PmdbClientObj: roe.rq.clientObj,
 		IRequest: roe.rq.foodpalaceData,
 		IResponse: rop,
 	}
 
-	err := reqArgs.Read()
+	err := req.Read()
 	if err != nil {
 		log.Error("Read request failed !!", err)
 		rdt := &foodpalaceRqOp{Status: -1}
@@ -475,16 +475,16 @@ func (wme *writeMulti) exec() error {
 		}
 		wme.rq.key = restIdStr
 		wme.rq.rncui = rncui
-		reqArgs := PumiceDBClient.PmdbReqArgs{
+		req := PumiceDBClient.PmdbClientReq{
 	            Rncui:       rncui,
 		    PmdbClientObj: wme.rq.clientObj,
         	    IRequest:       wme.multiReqdata[i],
 		    GetResponse: 0,
         	}
 
-		reqArgs.SetPmdbData(nil, nil, replySize)
+		req.SetPmdbData(nil, nil, replySize)
 		
-		err := reqArgs.Write()
+		err := req.Write()
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
@@ -553,19 +553,19 @@ func (rmp *readMulti) prepare() error {
 func (rme *readMulti) exec() error {
 	var rmexcerr error
 	var rmdte = &foodpalaceRqOp{}
-	var reqArgs *PumiceDBClient.PmdbReqArgs
+	var req *PumiceDBClient.PmdbClientReq
 
 	if len(rme.rmData) == len(rme.rmRncui) {
 		for i := range rme.rmData {
 			//Perform read operation.
 			rmopDt := &foodpalaceapplib.FoodpalaceData{}
-			reqArgs = &PumiceDBClient.PmdbReqArgs {
+			req = &PumiceDBClient.PmdbClientReq {
 				Rncui: "",
 				PmdbClientObj: rme.rq.clientObj,
 				IRequest: rme.rmData[i],
 				IResponse: rmopDt,
 			}
-			err := reqArgs.Read()
+			err := req.Read()
 			if err != nil {
 				rmdte = &foodpalaceRqOp{Status: -1}
 				rmdte.fillRm(rme)

@@ -235,7 +235,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
 	rncui := fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
 	var replySize int64
-	req := &pmdbClient.PmdbReqArgs{
+	req := &pmdbClient.PmdbClientReq{
 		Rncui:       rncui,
 		GetResponse: 0,
 		PmdbClientObj: handler.pmdbClientObj,
@@ -257,7 +257,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 
 // Read call definition for HTTP server
 func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
-	var req pmdbClient.PmdbReqArgs
+	var req pmdbClient.PmdbClientReq
 	req.PmdbClientObj = handler.pmdbClientObj
 	req.SetPmdbData(request, response, -1)
 	return req.Read()
