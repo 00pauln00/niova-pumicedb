@@ -55,7 +55,7 @@ type PmdbServerAPI interface {
 }
 
 type AppDataDecoder interface {
-    GetAppDataFromReq(applyArgs, reqStruct interface{}) error
+	GetAppDataFromReq(applyArgs, reqStruct interface{}) error
 }
 
 type LeaseServerAPI interface {
@@ -322,30 +322,20 @@ func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 }
 
 func (ps *PmdbServerObject) GetAppDataFromReq(goCbArgs *PmdbCbArgs, output interface{}) error {
-   	// Decode the PumiceRequest
-        var rqo PumiceDBCommon.PumiceRequest
-        pumiceDec := gob.NewDecoder(bytes.NewReader(goCbArgs.PmdbRequest.ReqPayload))
-
-        err := pumiceDec.Decode(&rqo)
-        if err != nil {
-                log.Error("Decoding PumiceRequest error: ", err)
-                return err
-        }
-
 	return ps.decodeApplicationReq(rqo.ReqPayload, output)
 }
 
 func (*PmdbServerObject) decodeApplicationReq(input []byte, output interface{}) error {
-        dec := gob.NewDecoder(bytes.NewBuffer(input))
-        for {
-                if err := dec.Decode(output); err == io.EOF {
-                        break
-                } else if err != nil {
-                        return err
-                }
-        }
+	dec := gob.NewDecoder(bytes.NewBuffer(input))
+	for {
+		if err := dec.Decode(output); err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
 
-        return nil
+	return nil
 }
 
 func Decode(input unsafe.Pointer, output interface{},
@@ -786,6 +776,6 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 	//Enqueue the direct request
 	ret := C.raft_server_enq_direct_raft_req_from_leader((*C.char)(buf), C.int64_t(totalSize))
 	C.free(buf)
-	
+
 	return int(ret)
 }
