@@ -96,7 +96,7 @@ func removeDuplicateStr(strSlice []string) []string {
 	return list
 }
 
-//Function to get command line arguments
+// Function to get command line arguments
 func (handler *proxyHandler) getCmdLineArgs() {
 	var tempRaftUUID, tempClientUUID string
 
@@ -200,7 +200,7 @@ func (handler *proxyHandler) startPMDBClient() error {
 
 }
 
-//Start the serf agent
+// Start the serf agent
 func (handler *proxyHandler) start_SerfAgent() error {
 	switch handler.serfLogger {
 	case "ignore":
@@ -230,18 +230,19 @@ func (handler *proxyHandler) start_SerfAgent() error {
 	return err
 }
 
-//Write callback definition for HTTP server
+// Write callback definition for HTTP server
 func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) error {
 	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
 	rncui := fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
 	var replySize int64
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	req := &pmdbClient.PmdbClientReq{
 		Rncui:       rncui,
-		ReqByteArr:  request,
-		ReplySize:   &replySize,
 		GetResponse: 0,
+		PmdbClientObj: handler.pmdbClientObj,
 	}
-	_, err := handler.pmdbClientObj.WriteEncoded(reqArgs)
+
+	req.SetPmdbData(request, nil, replySize)
+	err := req.Write()
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
@@ -254,15 +255,12 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 	return err
 }
 
-//Read call definition for HTTP server
+// Read call definition for HTTP server
 func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
-
-	reqArgs := &pmdbClient.PmdbReqArgs{
-		Rncui:      "",
-		ReqByteArr: request,
-		Response:   response,
-	}
-	return handler.pmdbClientObj.ReadEncoded(reqArgs)
+	var req pmdbClient.PmdbClientReq
+	req.PmdbClientObj = handler.pmdbClientObj
+	req.SetPmdbData(request, response, -1)
+	return req.Read()
 }
 
 func (handler *proxyHandler) start_HTTPServer() error {
@@ -283,7 +281,7 @@ func (handler *proxyHandler) start_HTTPServer() error {
 	return err
 }
 
-//Get gossip data
+// Get gossip data
 func (handler *proxyHandler) setSerfGossipData() {
 	tag := make(map[string]string)
 	//Static tags
@@ -348,7 +346,7 @@ func (handler *proxyHandler) killSignal_Handler() {
 	}()
 }
 
-//Main func
+// Main func
 func main() {
 
 	var err error

@@ -15,9 +15,9 @@ import (
 #cgo LDFLAGS: -lniova -lniova_raft -lniova_pumice -lrocksdb
 #include <stdlib.h>
 #include <string.h>
-#include <raft/pumice_db.h>
+#include <pumice_db.h>
 #include <raft/raft_net.h>
-#include <raft/pumice_db_client.h>
+#include <pumice_db_client.h>
 */
 import "C"
 

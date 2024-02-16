@@ -69,7 +69,7 @@ func (fpso *FoodpalaceServer) WritePrep(wrPreArgs *PumiceDBServer.PmdbCbArgs) in
 func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	data := &foodpalaceapplib.FoodpalaceData{}
-	fpso.pso.DecodeApplicationReq(applyArgs.Payload, data)
+	fpso.pso.GetAppDataFromReq(applyArgs, data)
 	log.Info("Data received from client: ", data)
 
 	//Convert resturant_id from int to string and store as fp_app_key.
@@ -114,7 +114,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	//Decode the request structure sent by client.
 	readReqData := &foodpalaceapplib.FoodpalaceData{}
 
-	fpso.pso.DecodeApplicationReq(readArgs.Payload, readReqData)
+	fpso.pso.GetAppDataFromReq(readArgs, readReqData)
 
 	log.Info("Key passed by client: ", readReqData.RestaurantId)
 
