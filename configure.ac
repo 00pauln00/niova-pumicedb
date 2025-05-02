@@ -18,7 +18,7 @@ AC_SUBST(MINOR_VERSION, niova_pumicedb_minor)
 AC_SUBST(VERSION_SUFFIX, niova_pumicedb_suffix)
 AC_SUBST(NIOVA_PATH, )
 
-AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall"])
+AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall -Wextra"])
 AC_SUBST([AM_CPPFLAGS], ["-Isrc/include -Isrc/contrib/include"])
 AC_SUBST([AM_LDFLAGS], [" "])
 
@@ -65,6 +65,14 @@ CPPFLAGS="$CPPFLAGS $NIOVA_CPPFLAGS"
 if [test ${found_niova} == 0] ; then
     AC_MSG_ERROR([Cannot find NIOVA installation])
 fi
+
+AC_CANONICAL_HOST
+AS_CASE(["$host_cpu"],
+    [arm*|aarch64*], [arm=true],
+    [i?86|x86_64], [x86=true]
+)
+AM_CONDITIONAL([ARCH_ARM], [test x$arm = xtrue])
+AM_CONDITIONAL([ARCH_X86], [test x$x86 = xtrue])
 
 AC_HEADER_STDC
 AC_CHECK_HEADERS([pthread.h], [],
@@ -181,6 +189,51 @@ AC_CHECK_LIB([niova_raft_client],[raft_client_init],
                 AC_SUBST(NIOVA_RAFT_CLIENT_LIBS, [-lniova_raft_client])
              ],
              [AC_MSG_ERROR([Could not find raft_client_init])])
+
+if [test x$arm == xtrue] ; then
+AC_MSG_CHECKING([for 64-bit PMULL support])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <stdio.h>
+#include <stdint.h>
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+]], [[
+#if defined(__aarch64__)
+unsigned long hwcap = getauxval(AT_HWCAP);
+if (hwcap & HWCAP_PMULL)
+	return 0;
+#endif
+return -1;
+]])
+], [
+AC_DEFINE([HAVE_PMULL64], [1], [Define as 1 if you have 64b PMULL support])
+AC_MSG_RESULT([yes])
+AM_CFLAGS="$AM_CFLAGS -DHAVE_PMULL64"
+], [
+AC_MSG_RESULT([no])
+])
+
+AC_MSG_CHECKING([if little-endian])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <stdio.h>
+]], [[
+#if defined(__aarch64__)
+    union {
+      unsigned int i;
+      char c[sizeof(unsigned int)];
+    } x;
+    x.i = 1;
+    return x.c[0];
+#endif
+return -1;
+]])
+], [
+AC_DEFINE([ARM_LE], [1], [System is little endian])
+AC_MSG_RESULT([yes])
+], [
+AC_MSG_RESULT([no])
+])
+fi
 
 AC_ARG_ENABLE(
     [asan],
