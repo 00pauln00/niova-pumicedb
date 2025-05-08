@@ -153,7 +153,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	keyLength := len(applyCovid.Location)
 
 	//Lookup the key first
-	prevResult, err := cso.pso.LookupKey(applyCovid.Location,
+	prevResult, err := cso.pso.LookupKey([]byte(applyCovid.Location),
 		int64(keyLength), colmfamily)
 
 	log.Info("Previous values of the covidData: ", prevResult)
@@ -183,9 +183,9 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	rc := cso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
-		applyCovid.Location,
-		int64(keyLength), covidDataVal,
+	rc := cso.pso.WriteKV(*applyArgs,
+		[]byte(applyCovid.Location),
+		int64(keyLength), []byte(covidDataVal),
 		int64(covidDataLen), colmfamily)
 
 	return int64(rc)
@@ -208,9 +208,9 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	keyLen := len(reqStruct.Location)
 	log.Info("Key length: ", keyLen)
-
+	
 	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
-	readRsult, readErr := cso.pso.ReadKV(readArgs.UserID, reqStruct.Location,
+	readRsult, readErr := cso.pso.ReadKV(*readArgs, []byte(reqStruct.Location),
 		int64(keyLen), colmfamily)
 
 	var splitValues []string
