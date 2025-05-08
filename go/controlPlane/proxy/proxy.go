@@ -447,24 +447,19 @@ func (handler *proxyHandler) PutHandlerCB(request []byte, response *[]byte) erro
 
 	if requestObj.ReqType == PumiceDBCommon.LEASE_REQ {
 		// prepare args to send to server
-		reqArgs := &pmdbClient.PmdbReqArgs{
+		req := &pmdbClient.PmdbClientReq{
 			Rncui:       rncui,
-			ReqByteArr:  request,
 			GetResponse: 1,
-			ReplySize:   &replySize,
-			Response:    response,
 		}
-
-		err = handler.pmdbClientObj.WriteEncodedAndGetResponse(reqArgs)
+		req.SetPmdbData(request, response, replySize)
+		err = req.Write()
 	} else {
-		reqArgs := &pmdbClient.PmdbReqArgs{
+		req := &pmdbClient.PmdbClientReq{
 			Rncui:       rncui,
-			ReqByteArr:  request,
 			GetResponse: 0,
-			ReplySize:   &replySize,
 		}
-
-		_, err = handler.pmdbClientObj.WriteEncoded(reqArgs)
+		req.SetPmdbData(request, nil, replySize)
+		err = req.Write()
 
 		var responseObj requestResponseLib.KVResponse
 		if err != nil {
@@ -491,12 +486,9 @@ Return(s) : error
 Description : Call back for PMDB read requests to HTTP server.
 */
 func (handler *proxyHandler) GetHandlerCB(request []byte, response *[]byte) error {
-	reqArgs := &pmdbClient.PmdbReqArgs{
-		Rncui:      "",
-		ReqByteArr: request,
-		Response:   response,
-	}
-	res := handler.pmdbClientObj.ReadEncoded(reqArgs)
+	var req pmdbClient.PmdbClientReq
+	req.SetPmdbData(request, response, -1)
+	res := req.Read()
 	return res
 }
 

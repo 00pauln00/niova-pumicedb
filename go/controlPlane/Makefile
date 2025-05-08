@@ -1,6 +1,6 @@
-DIR=/tmp/
+DIR=/tmp/niova/
 CGO_LDFLAGS=-L/${DIR}/lib/
-CGO_CFLAGS=-I/${DIR}/include/niova/
+CGO_CFLAGS=-I/${DIR}/include/niova/ -I${DIR}/include/
 LD_LIBRARY_PATH=/${DIR}/niova-core/lib/
 
 PMDBCOVERPKGS=common/pmdbServer,../../pumiceDB/server,../../pumiceDB/common,../../serf/agent,../../http/client,../requestResponseLib,../../specificCompressionLib,../../lookout/ctlMonitor,../../pumiceDB/lease/server,../../pumiceDB/lease/common,../../lookout/prometheusHandler
