@@ -141,7 +141,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	/* Decode the input buffer into structure format */
 	applyCovid := &CovidAppLib.CovidLocale{}
 
-	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, applyCovid)
+	decodeErr := cso.pso.GetAppDataFromReq(applyArgs, applyCovid)
 	if decodeErr != nil {
 		log.Error("Failed to decode the application data")
 		return -1
@@ -197,7 +197,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Decode the request structure sent by client.
 	reqStruct := &CovidAppLib.CovidLocale{}
-	decodeErr := cso.pso.DecodeApplicationReq(readArgs.Payload, reqStruct)
+	decodeErr := cso.pso.GetAppDataFromReq(readArgs, reqStruct)
 
 	if decodeErr != nil {
 		log.Error("Failed to decode the read request")

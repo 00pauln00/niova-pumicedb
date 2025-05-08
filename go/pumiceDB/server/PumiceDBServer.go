@@ -20,10 +20,10 @@ import (
 
 /*
 #cgo LDFLAGS: -lniova -lniova_raft -lniova_pumice -lrocksdb
-#include <raft/pumice_db.h>
 #include <rocksdb/c.h>
 #include <raft/raft_net.h>
-#include <raft/pumice_db_client.h>
+#include <pumice_db.h>
+#include <pumice_db_client.h>
 extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);
@@ -41,10 +41,10 @@ type PmdbCbArgs struct {
 	ReplyBuf    unsafe.Pointer
 	ReplySize   int64
 	InitState   int
-	Payload     []byte
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
+	PmdbRequest PumiceDBCommon.PumiceRequest
 }
 
 type PmdbServerAPI interface {
@@ -52,6 +52,10 @@ type PmdbServerAPI interface {
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
+}
+
+type AppDataDecoder interface {
+	GetAppDataFromReq(applyArgs, applyCovid interface{}) error
 }
 
 type LeaseServerAPI interface {
@@ -146,7 +150,7 @@ func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 		log.Error(err)
 		return -1
 	}
-	goCbArgs.Payload = request.ReqPayload
+	goCbArgs.PmdbRequest.ReqPayload = request.ReqPayload
 	return request.ReqType
 }
 
@@ -311,13 +315,17 @@ func (pso *PmdbServerObject) Run() error {
 }
 
 // Export the common decode method via the server object
-//TODO: Remove it from PmdbServerObject
+// TODO: Remove it from PmdbServerObject
 func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 	len int64) error {
 	return PumiceDBCommon.Decode(input, output, len)
 }
 
-func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
+func (ps *PmdbServerObject) GetAppDataFromReq(goCbArgs *PmdbCbArgs, output interface{}) error {
+	return ps.decodeApplicationReq(goCbArgs.PmdbRequest.ReqPayload, output)
+}
+
+func (*PmdbServerObject) decodeApplicationReq(input []byte, output interface{}) error {
 	dec := gob.NewDecoder(bytes.NewBuffer(input))
 	for {
 		if err := dec.Decode(output); err == io.EOF {
@@ -768,6 +776,6 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 	//Enqueue the direct request
 	ret := C.raft_server_enq_direct_raft_req_from_leader((*C.char)(buf), C.int64_t(totalSize))
 	C.free(buf)
-	
+
 	return int(ret)
 }

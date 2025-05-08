@@ -349,7 +349,7 @@ func (woexc *writeOne) exec() error {
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	_, err := woexc.rq.clientObj.Write(reqArgs)
+	err := woexc.rq.clientObj.Write(reqArgs)
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -460,7 +460,6 @@ func (wme *writeMulti) exec() error {
 		return err
 	}
 	defer file.Close()
-	var reqArgs PumiceDBClient.PmdbReqArgs
 	for i := 0; i < len(wme.multiReqdata); i++ {
 		//Generate app_uuid.
 		appUuid := uuid.NewV4().String()
@@ -475,13 +474,21 @@ func (wme *writeMulti) exec() error {
 		}
 		wme.rq.key = restIdStr
 		wme.rq.rncui = rncui
+		reqArgs := PumiceDBClient.PmdbReqArgs{
+	            Rncui:       rncui,
+        	    ReqED:       wme.multiReqdata[i],
+		    GetResponse: 0,
+		    Response:    &[]byte{},
+            	    ReplySize:   &replySize,
+        		}
 
 		reqArgs.Rncui = rncui
 		reqArgs.ReqED = wme.multiReqdata[i]
 		reqArgs.ReplySize = &replySize
 		reqArgs.GetResponse = 0
+		reqArgs.Response = &[]byte{}
 
-		_, err := wme.rq.clientObj.Write(&reqArgs)
+		err := wme.rq.clientObj.Write(&reqArgs)
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
@@ -496,6 +503,7 @@ func (wme *writeMulti) exec() error {
 	//Dump structure into json.
 	tmpOutfname := wrStrdata.dumpIntoJson(wme.rq.outfileUuid)
 	wme.rq.outfilename = tmpOutfname
+
 	return excerr
 }
 

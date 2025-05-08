@@ -248,7 +248,7 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 	var ret int64
 
 	//Decode request
-	rq, err := Decode(wrPrepArgs.Payload)
+	rq, err := Decode(wrPrepArgs.PmdbRequest.ReqPayload)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -320,7 +320,7 @@ func (lso *LeaseServerObject) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Trace("NiovaCtlPlane server: Read request received")
 
 	//Decode the request structure sent by client.
-	reqStruct, err := Decode(readArgs.Payload)
+	reqStruct, err := Decode(readArgs.PmdbRequest.ReqPayload)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -484,7 +484,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	var replySizeRc int64
 
 	// Decode the input buffer into structure format
-	applyLeaseReq, err := Decode(applyArgs.Payload)
+	applyLeaseReq, err := Decode(applyArgs.PmdbRequest.ReqPayload)
 	if err != nil {
 		log.Error(err)
 		return -1
