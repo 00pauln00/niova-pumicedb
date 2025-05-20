@@ -1,12 +1,12 @@
 package main
 
 import (
-	"dictapplib/lib"
+	"github.com/00pauln00/niova-pumicedb/go/apps/dictionaryAPP/lib"
 	"flag"
 	"fmt"
 	"log"
-	"niova/go-pumicedb-lib/common"
-	"niova/go-pumicedb-lib/server"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"strconv"
 	"strings"
 	"unsafe"

@@ -9,10 +9,10 @@ import (
 	"os"
 	"sync/atomic"
 
-	leaseClientLib "LeaseLib/leaseClient"
-	leaseLib "common/leaseLib"
-	pmdbClient "niova/go-pumicedb-lib/client"
-	PumiceDBCommon "niova/go-pumicedb-lib/common"
+	leaseClientLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/client"
+	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
+	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 
 	log "github.com/sirupsen/logrus"
 

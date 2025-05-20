@@ -2,12 +2,12 @@ package leaseServer
 
 import (
 	"bytes"
-	leaseLib "common/leaseLib"
+	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	list "container/list"
 	"encoding/gob"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
-	PumiceDBServer "niova/go-pumicedb-lib/server"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"sync"
 	"time"
 	"unsafe"

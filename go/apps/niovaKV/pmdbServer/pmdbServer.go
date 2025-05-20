@@ -1,11 +1,11 @@
 package main
 
 import (
-	"common/requestResponseLib"
+	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
 	"errors"
 	"flag"
-	PumiceDBCommon "niova/go-pumicedb-lib/common"
-	PumiceDBServer "niova/go-pumicedb-lib/server"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"os"
 
 	log "github.com/sirupsen/logrus"

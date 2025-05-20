@@ -2,13 +2,13 @@ package leaseclient
 
 import (
 	"bytes"
-	"common/leaseLib"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	"encoding/gob"
 	"errors"
 
-	serviceDiscovery "common/clientAPI"
-	pmdbClient "niova/go-pumicedb-lib/client"
-	PumiceDBCommon "niova/go-pumicedb-lib/common"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
+	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"

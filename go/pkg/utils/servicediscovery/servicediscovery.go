@@ -1,14 +1,14 @@
 package servicediscovery
 
 import (
-	"common/httpClient"
-	"common/serfClient"
-	compressionLib "common/specificCompressionLib"
+	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
+	serfClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfclient"
+	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"math/rand"
-	PumiceDBCommon "niova/go-pumicedb-lib/common"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"sync"
 	"time"
 

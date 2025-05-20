@@ -1,4 +1,4 @@
-vopackage serfclient
+package serfclient
 
 import (
 	"bufio"

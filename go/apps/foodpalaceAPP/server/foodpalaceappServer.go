@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	PumiceDBServer "niova/go-pumicedb-lib/server"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"os"
 	"strconv"
 	"strings"

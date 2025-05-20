@@ -2,14 +2,14 @@ package main
 
 import (
 	"bytes"
-	serviceDiscovery "common/clientAPI"
-	"common/requestResponseLib"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
+	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	PumiceDBCommon "niova/go-pumicedb-lib/common"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"os"
 	"reflect"
 	"strconv"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"dictapplib/lib"
+	"github.com/00pauln00/niova-pumicedb/go/apps/dictionaryAPP/lib"
 	"flag"
 	"fmt"
 	"os"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"niova/go-pumicedb-lib/client"
+	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
 )
 
 /*

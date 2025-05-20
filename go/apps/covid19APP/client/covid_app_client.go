@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"covidapplib/lib"
+	"github.com/00pauln00/niova-pumicedb/go/apps/covid19APP/lib"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
-	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 )
 
 var (
