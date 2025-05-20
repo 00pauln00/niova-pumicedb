@@ -6,7 +6,7 @@ go 1.22.2
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/serf v0.10.2
+	github.com/hashicorp/serf v0.9.5
 	github.com/mattn/go-pointer v0.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.9.3
@@ -27,6 +27,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-metrics v0.5.4 // indirect
+	github.com/hashicorp/go-msgpack v0.5.3 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.5 // indirect
