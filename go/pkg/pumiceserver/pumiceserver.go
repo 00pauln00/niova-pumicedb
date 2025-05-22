@@ -20,10 +20,10 @@ import (
 
 /*
 #cgo LDFLAGS: -lniova -lniova_raft -lniova_pumice -lrocksdb
-#include <raft/pumice_db.h>
+#include <pumice/pumice_db.h>
 #include <rocksdb/c.h>
 #include <raft/raft_net.h>
-#include <raft/pumice_db_client.h>
+#include <pumice/pumice_db_client.h>
 extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);

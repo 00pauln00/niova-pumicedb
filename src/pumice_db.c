@@ -16,9 +16,9 @@
 #include "niova/ref_tree_proto.h"
 #include "niova/fault_inject.h"
 
-#include "niova/raft/raft.h"
-#include "niova/raft/raft_net.h"
-#include "niova/raft/raft_server_backend_rocksdb.h"
+#include "raft/raft.h"
+#include "raft/raft_net.h"
+#include "raft/raft_server_backend_rocksdb.h"
 
 #include "pumice_db.h"
 #include "pumice_db_net.h"

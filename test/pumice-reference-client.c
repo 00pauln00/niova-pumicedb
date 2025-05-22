@@ -18,7 +18,7 @@
 #include "niova/thread.h"
 #include "niova/util_thread.h"
 
-#include "niova/raft/raft_test.h"
+#include "raft/raft_test.h"
 
 #include "pumice_db_client.h"
 

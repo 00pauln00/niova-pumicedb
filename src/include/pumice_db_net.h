@@ -10,8 +10,8 @@
 #include <uuid/uuid.h>
 
 #include "niova/common.h"
-#include "niova/raft/raft_client.h"
-#include "niova/raft/raft_net.h"
+#include "raft/raft_client.h"
+#include "raft/raft_net.h"
 
 #define PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP 1024
 #define PMDB_MAX_APP_RPC_PAYLOAD_SIZE_UDP                                \

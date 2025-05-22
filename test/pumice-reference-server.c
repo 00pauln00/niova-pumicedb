@@ -13,8 +13,8 @@
 
 #include "niova/common.h"
 #include "niova/registry.h"
-#include "niova/raft/raft_net.h"
-#include "niova/raft/raft_test.h"
+#include "raft/raft_net.h"
+#include "raft/raft_test.h"
 
 #include "pumice_db.h"
 

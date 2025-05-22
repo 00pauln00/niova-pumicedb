@@ -1,7 +1,7 @@
 package pumiceserver
 
 /*
-#include <niova/raft/pumice_db.h>
+#include <pumice/pumice_db.h>
 extern ssize_t goWritePrep(struct pumicedb_cb_cargs *);
 extern ssize_t goApply(struct pumicedb_cb_cargs *);
 extern ssize_t goRead(struct pumicedb_cb_cargs *);
