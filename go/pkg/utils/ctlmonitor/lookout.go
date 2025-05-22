@@ -2,8 +2,7 @@ package lookout
 
 import (
 	"bytes"
-	"common/prometheus_handler"
-	"common/requestResponseLib"
+	prometheus_handler "github.com/00pauln00/niova-pumicedb/go/pkg/utils/prometheushandler"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
@@ -311,7 +310,7 @@ func (epc *EPContainer) QueryHandle(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	requestObj := requestResponseLib.LookoutRequest{}
+	requestObj := LookoutRequest{}
 	dec := gob.NewDecoder(bytes.NewBuffer(requestBytes))
 	err = dec.Decode(&requestObj)
 	if err != nil {

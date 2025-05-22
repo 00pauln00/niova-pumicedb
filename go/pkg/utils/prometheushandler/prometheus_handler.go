@@ -1,4 +1,4 @@
-package prometheus_handler
+package prometheushandler
 
 import (
 	"fmt"

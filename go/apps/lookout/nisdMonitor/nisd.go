@@ -3,12 +3,11 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"common/httpClient"
-	"common/lookout"
-	"common/requestResponseLib"
-	"common/serviceDiscovery"
-	compressionLib "common/specificCompressionLib"
-	"controlplane/serfAgent"
+	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
+	lookout "github.com/00pauln00/niova-pumicedb/go/pkg/utils/ctlmonitor"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
+	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
+	serfAgent "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfagent"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -110,7 +109,7 @@ func (handler *nisdMonitor) parseCMDArgs() {
 }
 
 func (handler *nisdMonitor) requestPMDB(key string) ([]byte, error) {
-	request := requestResponseLib.KVRequest{
+	request := lookout.KVRequest{
 		Operation: "read",
 		Key:       key,
 	}
@@ -145,7 +144,7 @@ func (handler *nisdMonitor) getConfigNSend(udpInfo udpMessage) {
 	responseByte, _ := handler.requestPMDB(uuidString)
 
 	//Decode response to IPAddr and Port
-	responseObj := requestResponseLib.KVResponse{}
+	responseObj := lookout.KVResponse{}
 	dec := gob.NewDecoder(bytes.NewBuffer(responseByte))
 	dec.Decode(&responseObj)
 	var value map[string]string
@@ -286,7 +285,7 @@ func (handler *nisdMonitor) SerfMembership() map[string]bool {
 }
 
 func (handler *nisdMonitor) getPortRange() error {
-	var response requestResponseLib.PMDBKVResponse
+	var response lookout.PMDBKVResponse
 
 	responseBytes, err := handler.requestPMDB(handler.raftUUID + "_Port_Range")
 	if err != nil {

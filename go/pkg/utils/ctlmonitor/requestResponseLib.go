@@ -1,4 +1,4 @@
-package requestResponseLib
+package lookout
 
 type KVRequest struct {
 	Operation  string
