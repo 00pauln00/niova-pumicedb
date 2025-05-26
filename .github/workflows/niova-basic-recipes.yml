@@ -48,8 +48,15 @@ jobs:
         make -j 4 && make -j 4 check && sudo make install
 
 #build niova-raft
-    - name: build niova-raft
-      run: cd modules/niova-raft && ./prepare.sh && ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --prefix=/usr/local/niova --enable-asan --enable-devel && make clean && make && make install
+    - name: Checkout niova-raft
+      uses: actions/checkout@v4
+      with:
+        repository: 00pauln00/niova-raft
+        ref: niova_repo_split
+        path: ./niova-raft
+
+    - name: Compile niova-raft
+      run: cd ./niova-raft && ./prepare.sh && ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --prefix=/usr/local/niova --enable-asan --enable-devel && make clean && make && make install
 
 
     - name: Install python libraries
