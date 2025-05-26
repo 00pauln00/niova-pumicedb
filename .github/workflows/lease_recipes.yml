@@ -11,9 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v3
-      with:
-        path: ./code
+    - uses: actions/checkout@v4
 
     - name: apt update
       run: sudo apt update
@@ -42,10 +40,27 @@ jobs:
     # Install Ansible
     - name: Install Ansible
       run:  pip3 install ansible
+    
+    # Init submodules
+    - name: Init submodule
+      run: git submodule init && git submodule update
+
+      # Build backtrace
+    - name: build libbacktrace
+      run: cd modules/libbacktrace/ && ./configure && make && sudo make install
+
+      #Build niova-core
+    - name: build niova-core
+      run: git submodule update && cd modules/niova-core/ && git checkout niova_repo_split && git pull && ./prepare.sh &&
+        ./configure --enable-devel --prefix=/usr/local/niova &&
+        make -j 4 && make -j 4 check && sudo make install
+
+      #Build niova-raft 
+    - name: Compile niova-raft
+      run: cd modules/niova-raft/ && git checkout niova_repo_split && git pull && ./prepare.sh && ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --prefix=/usr/local/niova --enable-asan --enable-devel && make clean && make -j 4 && sudo make install
 
     - name: make
-      run: cd ./code &&
-           ./prepare.sh &&
+      run: ./prepare.sh &&
            ./configure --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
            make clean && make && make install
       env:
@@ -53,18 +68,18 @@ jobs:
 
     - name: Build go applications using makefile
       run: export PATH=$PATH:/home/runner/work/go/go/bin &&
-           cd code/go/pumiceDB/examples/leaseApp
+           cd go/pumiceDB/examples/leaseApp
            && cd client && go mod tidy && cd ..
            && cd pmdbServer && go mod tidy && cd ..
            && make install_all -e DIR=/home/runner/work/niovad/niovad/build_dir
 
     - name: Copy script to run recipes
-      run: cp ./code/scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp ./code/scripts/lease_recipes.txt /home/runner/work/niovad/niovad/build_dir/
+      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
+           cp scripts/lease_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
     # Checkout holon repo
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
        #ref:
