@@ -16,6 +16,10 @@ jobs:
     - name: apt update
       run: sudo apt update
 
+    - name: dpkg / rpm prep
+      run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
+  
+    # Install golang
     - name: Install golang 1.20.3
       run: sudo rm -rf /usr/bin/go &&
            sudo wget https://golang.org/dl/go1.20.3.linux-amd64.tar.gz &&
@@ -23,15 +27,7 @@ jobs:
            sudo tar -C /home/runner/work/go -xzf  go1.20.3.linux-amd64.tar.gz &&
            export PATH=$PATH:/home/runner/work/go/go/bin &&
            go version
-
-    - name: dpkg / rpm prep
-      run: sudo apt-get install -y uuid-dev
-                                   uuid libuuid1
-                                   libaio-dev libaio1
-                                   libgcrypt20 openssl
-                                   libssl-dev python3-pip
-                                   python3-setuptools `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
-
+           
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
 
