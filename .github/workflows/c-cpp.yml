@@ -43,6 +43,12 @@ jobs:
         ./configure --enable-devel --prefix=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 
+# build niova-raft
+    - name: build niova-raft
+      run: git submodule update && cd modules/niova-raft/ && ./prepare.sh &&
+        ./configure --enable-devel --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
+        make -j 4 && make -j 4 check && sudo make install
+
 # default build
     - name: prepare default build
       run: ./prepare.sh
