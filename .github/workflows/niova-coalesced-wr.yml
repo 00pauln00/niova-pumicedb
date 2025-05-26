@@ -1,9 +1,9 @@
 name: holon_coalesced_wr_recipes_workflow
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build:
