@@ -1,4 +1,4 @@
-package main
+gipackage main
 
 import (
 	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
@@ -129,7 +129,7 @@ func (nso *NiovaKVServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 
 func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
-	log.Trace("NiovaCtlPlane server: Apply request received")
+	log.Info("NiovaCtlPlane server: Apply request received")
 
 	// Decode the input buffer into structure format
 	applyNiovaKV := &requestResponseLib.KVRequest{}
@@ -140,13 +140,13 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		return -1
 	}
 
-	log.Trace("Key passed by client: ", applyNiovaKV.Key)
+	
 
 	// length of key.
 	keyLength := len(applyNiovaKV.Key)
 
 	byteToStr := string(applyNiovaKV.Value)
-
+	log.Info("Passed by client: ", applyNiovaKV.Key, byteToStr)
 	// Length of value.
 	valLen := len(byteToStr)
 
@@ -161,7 +161,7 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
-	log.Trace("NiovaCtlPlane server: Read request received")
+	log.Info("NiovaCtlPlane server: Read request received")
 
 	//Decode the request structure sent by client.
 	reqStruct := &requestResponseLib.KVRequest{}
@@ -172,7 +172,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		return -1
 	}
 
-	log.Trace("Key passed by client: ", reqStruct.Key)
+	log.Info("Key passed by client: ", reqStruct.Key)
 
 	keyLen := len(reqStruct.Key)
 	log.Trace("Key length: ", keyLen)
@@ -187,7 +187,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	if readErr == nil {
 		valType = readResult
 		inputVal := string(valType)
-		log.Trace("Input value after read request:", inputVal)
+		log.Info("Input value after read request:", inputVal)
 
 		resultReq := requestResponseLib.KVRequest{
 			Key:   reqStruct.Key,
@@ -205,6 +205,6 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		log.Error(readErr)
 	}
 
-	log.Trace("Reply size: ", replySize)
+	log.Info("Reply size: ", replySize)
 	return replySize
 }
