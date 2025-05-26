@@ -43,20 +43,13 @@ jobs:
 
 # build niova-core
     - name: build niova-core
-      run: git submodule update && cd modules/niova-core/ && ./prepare.sh &&
+      run: git submodule update && cd modules/niova-core/ && git checkout niova_repo_split && git pull && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 
 #build niova-raft
-    - name: Checkout niova-raft
-      uses: actions/checkout@v4
-      with:
-        repository: 00pauln00/niova-raft
-        ref: niova_repo_split
-        path: ./niova-raft
-
     - name: Compile niova-raft
-      run: cd ./niova-raft && ./prepare.sh && ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --prefix=/usr/local/niova --enable-asan --enable-devel && make clean && make && make install
+      run: cd modules/niova-raft/ && git checkout niova_repo_split && git pull && ./prepare.sh && ./configure LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova --prefix=/usr/local/niova --enable-asan --enable-devel && make clean && make -j 4 && sudo make install
 
 
     - name: Install python libraries
