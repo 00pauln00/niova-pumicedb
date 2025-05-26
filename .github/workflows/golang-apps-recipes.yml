@@ -26,7 +26,7 @@ jobs:
            sudo tar -C /home/runner/work/go -xzf  go1.20.3.linux-amd64.tar.gz &&
            export PATH=$PATH:/home/runner/work/go/go/bin &&
            go version
-           
+
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
 
@@ -138,7 +138,7 @@ jobs:
       if: failure()
 
     - name: Archive the test results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
          name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
          path: /home/runner/work/niovad/niovad/holon_log
