@@ -61,17 +61,13 @@ jobs:
 
     - name: Build go applications using makefile
       run: export PATH=$PATH:/home/runner/work/go/go/bin &&
-           cd go/pumiceDB/examples/niovaKV && make -e DIR=/home/runner/work/niovad/niovad/build_dir
-    - name: Copy script to run recipes
-      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp scripts/niovakv_recipes.txt /home/runner/work/niovad/niovad/build_dir/ &&
-           cp scripts/covid_app_recipe.txt scripts/foodpalaceapp_recipe.txt /home/runner/work/niovad/niovad/build_dir/
+           cd go/ && make -e DIR=/home/runner/work/niovad/niovad/build_dir
 
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       #ref:
+       ref: niova_core_recipes_compatibility
        token: ${{ secrets.HOLON_NIOVA_CI_21_12_2020 }} # 'GitHub_PAT' is a secret that contains your PAT
        path: ./holon
 
