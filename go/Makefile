@@ -13,6 +13,7 @@ niovakv_all: compile niovakv covidapp foodpalaceapp leaseApp install
 compile:
 	echo "Compiling niovakv"
 	mkdir -p libexec
+	go mod tidy
 
 niovakv:
 	go build -o libexec/NKV_pmdbServer apps/niovaKV/pmdbServer/pmdbServer.go
