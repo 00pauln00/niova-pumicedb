@@ -1,4 +1,4 @@
-gipackage main
+package main
 
 import (
 	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
