@@ -27,7 +27,7 @@ jobs:
            sudo tar -C /home/runner/work/go -xzf  go1.20.3.linux-amd64.tar.gz &&
            export PATH=$PATH:/home/runner/work/go/go/bin &&
            go version
-           
+
     # Install python libraies
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
@@ -56,17 +56,13 @@ jobs:
 
     - name: make
       run: ./prepare.sh &&
-           ./configure --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
+           ./configure --with-niova=/usr/local/niova --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
            make clean && make && make install
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
     - name: Build go applications using makefile
-      run: export PATH=$PATH:/home/runner/work/go/go/bin &&
-           cd go/pumiceDB/examples/leaseApp
-           && cd client && go mod tidy && cd ..
-           && cd pmdbServer && go mod tidy && cd ..
-           && make install_all -e DIR=/home/runner/work/niovad/niovad/build_dir
+      run: make -e DIR=/usr/local/niova
 
     - name: Copy script to run recipes
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
