@@ -2,7 +2,7 @@ module github.com/00pauln00/niova-pumicedb/go
 
 replace github.com/00pauln00/niova-pumicedb/go => ./
 
-go 1.22.2
+go 1.22
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
