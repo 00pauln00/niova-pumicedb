@@ -89,6 +89,8 @@ jobs:
                              'raft'
                              '/home/runner/work/go/go/bin'
 
+    - name: Setup Debug Session
+      uses: csexton/debugger-action@master
 
     - name: Prepare artifact filename
       id: prepare_artifact_filename
