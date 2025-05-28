@@ -91,6 +91,7 @@ jobs:
 
     - name: Setup Debug Session
       uses: csexton/debugger-action@master
+      if: failure()
 
     - name: Prepare artifact filename
       id: prepare_artifact_filename
