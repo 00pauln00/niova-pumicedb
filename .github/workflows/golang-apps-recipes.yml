@@ -62,6 +62,12 @@ jobs:
     - name: Build go applications using makefile
       run: export PATH=$PATH:/home/runner/work/go/go/bin &&
            cd go/ && make -e DIR=/home/runner/work/niovad/niovad/build_dir
+    
+    - name: Copy script to run recipes
+      run: cp ./scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
+           cp ./scripts/covid_app_recipe.txt /home/runner/work/niovad/niovad/build_dir/ &&
+           cp ./scripts/foodpalaceapp_recipe.txt /home/runner/work/niovad/niovad/build_dir/ &&
+           cp ./scripts/niovakv_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
     - name: Checkout repository
       uses: actions/checkout@v4
