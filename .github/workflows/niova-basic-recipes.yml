@@ -26,7 +26,7 @@ jobs:
 
 # Install Ansible
     - name: Install Ansible
-      run:  pip3 install ansible
+      run:  pip3 install ansible==2.16
 
 # build backtrace submodule
     - name: submodule init
