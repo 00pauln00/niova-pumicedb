@@ -83,7 +83,7 @@ jobs:
     - name: prepare clang build
       run: ./prepare.sh
     - name: configure CC=clang
-      run: ./configure CC=clang LDFLAGS=-L/usr/local/lib --with-niova=/usr/local/niova
+      run: ./configure CC=clang --with-niova=/usr/local/niova
     - name: make
       run: make -j 4
     - name: make check (clang)
