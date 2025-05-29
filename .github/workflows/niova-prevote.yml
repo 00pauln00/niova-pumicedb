@@ -33,7 +33,7 @@ jobs:
 
       # Install Ansible
     - name: Install Ansible
-      run:  pip3 install ansible
+      run:  pip3 install ansible==9.2
     
     # Init submodules
     - name: Init submodule
