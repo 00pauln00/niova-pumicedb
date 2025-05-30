@@ -57,7 +57,7 @@ jobs:
 # default build
     - name: prepare default build
       run: ./prepare.sh
-    - name: configure
+u   - name: configure
       run: ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make && make install
 
     - name: list binary folder
@@ -88,12 +88,18 @@ jobs:
                              '/home/runner/work/niovad/niovad/build_dir/basic_recipes.txt'
                              'pumicedb'
                              '/home/runner/work/go/go/bin'
+    
+    - name: Setup Debug Session
+      uses: csexton/debugger-action@master
+      if: failure()
+
 
     - name: Prepare artifact filename
       id: prepare_artifact_filename
       run: |
         echo ::set-output name=ARTIFACT_NAME::test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}
       if: failure()
+
 
     - name: Archive the test results
       uses: actions/upload-artifact@v4
