@@ -8,7 +8,7 @@ pkgconfig_DATA = ./niova.pc
 my_libexecdir = $(libexecdir)/niova
 my_libexec_PROGRAMS =
 
-my_includedir = $(includedir)/niova
+my_includedir = $(includedir)/pumice
 my_include_HEADERS =
 
 ACLOCAL_AMFLAGS = -I m4
@@ -42,7 +42,7 @@ test_pumice_reference_server_SOURCES = test/pumice-reference-server.c
 #test_pumice_reference_server_LIBADD = libniova_pumice.la
 test_pumice_reference_server_LDADD = $(ROCKSDB_LIBS) $(NIOVA_RAFT_LIBS) src/libniova_pumice.la
 
-libniova_pumice_includedir = $(includedir)/niova/
+libniova_pumice_includedir = $(includedir)/pumice
 libniova_pumice_include_HEADERS = src/include/pumice_db_net.h \
 	src/include/pumice_db_client.h \
 	src/include/pumice_db.h

@@ -1,9 +1,9 @@
 name: holon_prevote_recipes_workflow
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -11,13 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v2
-      with:
-        path: ./code
+    - uses: actions/checkout@v4
 
     - name: apt update
       run: sudo apt update
 
+    - name: dpkg / rpm prep
+      run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
+  
+    # Install golang
     - name: Install golang 1.20.3
       run: sudo rm -rf /usr/bin/go &&
            sudo wget https://golang.org/dl/go1.20.3.linux-amd64.tar.gz &&
@@ -25,40 +27,48 @@ jobs:
            sudo tar -C /home/runner/work/go -xzf  go1.20.3.linux-amd64.tar.gz &&
            export PATH=$PATH:/home/runner/work/go/go/bin &&
            go version
-
-    - name: dpkg / rpm prep
-      run: sudo apt-get install -y uuid-dev
-                                   uuid libuuid1
-                                   libaio-dev libaio1
-                                   libgcrypt20 openssl
-                                   libssl-dev python3-pip
-                                   python3-setuptools `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
-
+           
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
 
       # Install Ansible
     - name: Install Ansible
-      run:  pip3 install ansible
+      run:  pip3 install ansible==9.2
+    
+    # Init submodules
+    - name: Init submodule
+      run: git submodule init && git submodule update
+
+      # Build backtrace
+    - name: build libbacktrace
+      run: cd modules/libbacktrace/ && ./configure && make && sudo make install
+
+      #Build niova-core
+    - name: build niova-core
+      run: git submodule update && cd modules/niova-core/ && git checkout niova_repo_split && git pull && ./prepare.sh &&
+        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+        make -j 4 && make -j 4 check && make install
+
+      #Build niova-raft
+    - name: Compile niova-raft
+      run: cd modules/niova-raft/ && git checkout niova_repo_split && git pull && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
 
     - name: make
-      run: cd ./code &&
-           ./prepare.sh &&
-           ./configure --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel &&
+      run: ./prepare.sh &&
+           ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel &&
            make clean && make && make install
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
     - name: Copy script to run recipes
-      run: cp ./code/scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp ./code/scripts/prevote_recipes.txt /home/runner/work/niovad/niovad/build_dir/
+      run: cp ./scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
+           cp ./scripts/prevote_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       #ref:
-       token: ${{ secrets.HOLON_NIOVA_CI_21_12_2020 }} # 'GitHub_PAT' is a secret that contains your PAT
+       ref: niova_core_recipes_compatibility
        path: ./holon
 
     - name: Copy holon repo
@@ -83,7 +93,7 @@ jobs:
       if: failure()
 
     - name: Archive the test results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
          name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
          path: /home/runner/work/niovad/niovad/holon_log
