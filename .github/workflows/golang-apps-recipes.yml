@@ -50,7 +50,7 @@ jobs:
         
       #Build niova-raft 
     - name: Compile niova-raft                                                
-      run: cd modules/niova-raft/ && git pull && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
+      run: cd modules/niova-raft/ && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
 
     - name: make
       run: ./prepare.sh &&
