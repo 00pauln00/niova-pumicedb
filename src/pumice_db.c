@@ -1634,6 +1634,15 @@ PmdbRncui2Key(const struct raft_net_client_user_id *rncui)
 	return (const char *)&(rncui)->rncui_key.v0;
 }
 
+void pumice_server_rncui_id_parse(const char *in,
+                              struct raft_net_client_user_id *rncui,
+                              const version_t version) 
+{
+    struct raft_server_instance *raft_server =
+        get_raft_server_instance();
+    raft_net_client_user_id_parse(raft_server->ri, in, rncui, version);
+}
+
 size_t
 PmdbEntryKeyLen(void)
 {

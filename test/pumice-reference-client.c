@@ -495,7 +495,7 @@ pmdbtc_parse_and_process_input_cmd(const char *input_cmd_str)
         switch (pos)
         {
         case 0:
-            rc = raft_net_client_user_id_parse(sub, &rncui, 0);
+            rc = raft_net_client_user_id_parse(pmdbtcPMDB, sub, &rncui, 0);
             if (rc)
                 return -EBADMSG;
 
