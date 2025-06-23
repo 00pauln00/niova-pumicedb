@@ -104,6 +104,10 @@ func (handler *clientHandler) sendReq(req *requestResponseLib.KVRequest, write b
 			if responseObj.Status == 0 {
 				validate = handler.validate_read(req.Key, responseObj.Value)
 			}
+		} else {
+			if responseObj.Status == 0 {
+				validate = true
+			}
 		}
 
 		status = responseObj.Status
