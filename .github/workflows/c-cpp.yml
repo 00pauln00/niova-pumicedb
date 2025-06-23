@@ -39,13 +39,13 @@ jobs:
 
 # build niova-core
     - name: build niova-core
-      run: git submodule update && cd modules/niova-core/ && ./prepare.sh &&
+      run: git submodule update --init --recursive && cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 
 # build niova-raft
     - name: build niova-raft
-      run: git submodule update && cd modules/niova-raft/ && ./prepare.sh &&
+      run: cd modules/niova-raft/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 

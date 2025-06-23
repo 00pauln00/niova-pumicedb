@@ -37,13 +37,13 @@ jobs:
 
       #Build niova-core
     - name: build niova-core
-      run: git submodule update && cd modules/niova-core/ && git checkout niova_repo_split && git pull && ./prepare.sh &&
+      run: git submodule update --init --recursive && cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
 
       #Build niova-raft
     - name: Compile niova-raft
-      run: cd modules/niova-raft/ && git checkout niova_repo_split && git pull && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
+      run: cd modules/niova-raft/ && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
 
     - name: make
       run: ./prepare.sh &&
