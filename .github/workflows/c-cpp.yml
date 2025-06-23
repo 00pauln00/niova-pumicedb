@@ -35,7 +35,7 @@ jobs:
 
 # niova-core submodule init
     - name: submodule init (niova-core)
-      run: cd modules/niova-core && git submodule init && git submodule update
+      run: cd modules/niova-raft/modules/niova-core/ && git submodule init && git submodule update
 
 # build niova-core
     - name: build niova-core
