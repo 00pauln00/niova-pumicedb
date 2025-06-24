@@ -158,6 +158,10 @@ PmdbCfHandleLookup(const char *cf_name);
 const char *
 PmdbRncui2Key(const struct raft_net_client_user_id *rncui);
 
+void pumice_server_rncui_id_parse(const char *in,
+                              struct raft_net_client_user_id *rncui,
+                              const version_t version);
+
 size_t
 PmdbEntryKeyLen(void);
 
