@@ -29,7 +29,7 @@ jobs:
 
     # Init submodules
     - name: Init submodule
-      run: git submodule init && git submodule update
+      run: git submodule update --init --recursive
 
       # Build backtrace
     - name: build libbacktrace
