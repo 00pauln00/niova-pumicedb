@@ -68,7 +68,7 @@ jobs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       #ref:
+       ref: recipe_split
        path: ./holon
 
     - name: Copy holon repo
