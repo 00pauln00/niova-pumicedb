@@ -697,12 +697,12 @@ pmdb_range_read_release_old_snapshots(void)
 
     if (FAULT_INJECT(pmdb_range_read_keep_old_snapshot))
     {
-        SIMPLE_LOG_MSG(
-            LL_DEBUG,
-            "pmdb_range_read_keep_old_snapshot fault injection is set");
-
+        SIMPLE_LOG_MSG(LL_ERROR,
+                       "Dont destroy the older snapshot as fault ineject is set");
         return;
     }
+
+    SIMPLE_LOG_MSG(LL_ERROR, "Deleting snapshot");
 
     CIRCLEQ_FOREACH_SAFE(rr, &prrq_queue, prrq_lentry, tmp_rr)
     {
@@ -882,6 +882,20 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     return rc >= 0 ? 0 : -1;
 }
 
+static int
+pmdb_read_modify_write_cb(struct raft_net_client_request_handle *rncr)
+{
+    //TODO: Yet to implement this function
+    if (!pmdbApi->pmdb_read_modify_write)
+    {
+        LOG_MSG(LL_ERROR, "pmdb_read_modify_write is not implemented");
+        return -ENOSYS;
+    }
+    //pmdbApi->pmdb_read_modify_write(&read_modify_write_cb_args);
+    return 0;
+
+}
+
 /**
  * pmdb_sm_handler_client_write - lookup the object and ensure that the
  *    requested write sequence number is consistent with the pmdb-object.
@@ -986,10 +1000,11 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
             {
                 int continue_wr = 1;
                 rc = pmdb_write_prep_cb(rncr, &continue_wr);
-
-                // Check pmdb_write_prep_cb() value set in continue_wr
-                if (!rc && continue_wr)
+                // If write_prep return success and allow to continue raft write.
+                if (!rc && continue_wr) {
+                    pmdb_read_modify_write_cb(rncr);
                     pmdb_prep_raft_entry_write(rncr, &obj);
+                }
             }
         }
     }
