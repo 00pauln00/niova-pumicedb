@@ -17,6 +17,7 @@
 
 typedef ssize_t pumicedb_apply_ctx_ssize_t;
 typedef ssize_t pumicedb_write_prep_ctx_ssize_t;
+typedef ssize_t pumicedb_read_modify_write_ctx_ssize_t;
 typedef ssize_t pumicedb_read_ctx_ssize_t;
 typedef void    pumicedb_init_ctx_void_t;
 
@@ -66,6 +67,17 @@ typedef pumicedb_read_ctx_ssize_t
 typedef pumicedb_write_prep_ctx_ssize_t
 (*pmdb_write_prep_sm_handler_t)(struct pumicedb_cb_cargs *args);
 
+
+/**
+ * pmdb_read_modify_write_sm_handler_t - The read modify write handler is called
+ * from raft when a write is requested.
+ * Application is presented with original buffer content. The application can perform
+ * read operation on the rocksDB and modify the buffer content as tentative update.
+ * Actual write to rocksDB would happen only through apply handler.
+ */
+typedef pumicedb_read_modify_write_ctx_ssize_t
+(*pmdb_read_modify_write_sm_handler_t)(struct pumicedb_cb_cargs *args);
+
 /**
  *pmdb_init_sm_handler_t - The init peer handler is called from
  * raft when peer boots up, becomes leader.
@@ -78,6 +90,7 @@ typedef pumicedb_init_ctx_void_t
 struct PmdbAPI
 {
     pmdb_write_prep_sm_handler_t      pmdb_write_prep;
+    pmdb_read_modify_write_sm_handler_t pmdb_read_modify_write;
     pmdb_apply_sm_handler_t           pmdb_apply;
     pmdb_read_sm_handler_t            pmdb_read;
     pmdb_init_sm_handler_t            pmdb_init;

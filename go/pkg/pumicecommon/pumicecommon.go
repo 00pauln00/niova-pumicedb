@@ -45,6 +45,7 @@ const (
 	APP_REQ     int = 0
 	LEASE_REQ       = 1
 	LOOKOUT_REQ     = 2
+	FUNC_REQ	  	= 3
 )
 
 //Func for initializing the logger

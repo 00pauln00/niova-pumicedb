@@ -51,6 +51,7 @@ type PmdbServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
+	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
 }
 
@@ -58,12 +59,22 @@ type LeaseServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
+	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
+	Init(goCbArgs *PmdbCbArgs)
+}
+
+type FuncServerAPI interface {
+	WritePrep(goCbArgs *PmdbCbArgs) int64
+	Apply(goCbArgs *PmdbCbArgs) int64
+	Read(goCbArgs *PmdbCbArgs) int64
+	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
 }
 
 type PmdbServerObject struct {
 	PmdbAPI        PmdbServerAPI
 	LeaseAPI       LeaseServerAPI
+	FuncAPI		 FuncServerAPI
 	RaftUuid       string
 	PeerUuid       string
 	SyncWrites     bool
@@ -172,8 +183,33 @@ func goWritePrep(args *C.struct_pumicedb_cb_cargs) int64 {
 	} else if reqType == PumiceDBCommon.LEASE_REQ {
 		//Calling leaseAPP WritePrep
 		ret = gcb.LeaseAPI.WritePrep(&wrPrepArgs)
+	} else if reqType == PumiceDBCommon.FUNC_REQ {
+		//Calling the golang Function's WritePrep function.
+		ret = gcb.FuncAPI.WritePrep(&wrPrepArgs) 
 	} else {
 		return -1
+	}
+	return ret
+}
+
+//export goReadModifyWrite
+func goReadModifyWrite(args *C.struct_pumicedb_cb_cargs) int64 {
+	var rmwArgs PmdbCbArgs
+	reqType := pmdbCbArgsInit(args, &rmwArgs)
+
+	//Restore the golang function pointers stored in PmdbCallbacks.
+	gcb := gopointer.Restore(rmwArgs.UserData).(*PmdbServerObject)
+
+	var ret int64
+	if reqType == PumiceDBCommon.APP_REQ {
+		//Calling the golang Application's ReadModifyWrite function.
+		ret = gcb.PmdbAPI.ReadModifyWrite(&rmwArgs)
+	} else if reqType == PumiceDBCommon.LEASE_REQ {
+		//Calling leaseAPP ReadModifyWrite
+		ret = gcb.LeaseAPI.ReadModifyWrite(&rmwArgs)
+	} else if reqType == PumiceDBCommon.FUNC_REQ {
+		//Calling the golang Function's ReadModifyWrite function.
+		ret = gcb.FuncAPI.ReadModifyWrite(&rmwArgs)
 	}
 	return ret
 }
@@ -195,6 +231,9 @@ func goApply(args *C.struct_pumicedb_cb_cargs,
 	} else if reqType == PumiceDBCommon.LEASE_REQ {
 		//Calling leaseAPP Apply
 		ret = gcb.LeaseAPI.Apply(&applyArgs)
+	} else if reqType == PumiceDBCommon.FUNC_REQ {
+		//Calling the golang Function's Apply function.
+		ret = gcb.FuncAPI.Apply(&applyArgs)
 	}
 	return ret
 }
@@ -215,6 +254,9 @@ func goRead(args *C.struct_pumicedb_cb_cargs) int64 {
 	} else if reqType == PumiceDBCommon.LEASE_REQ {
 		//Calling leaseAPP Read
 		ret = gcb.LeaseAPI.Read(&readArgs)
+	} else if reqType == PumiceDBCommon.FUNC_REQ {
+		//Calling the golang Function's Read function.
+		ret = gcb.FuncAPI.Read(&readArgs)
 	}
 	return ret
 }
@@ -267,6 +309,7 @@ func PmdbStartServer(pso *PmdbServerObject) error {
 	cCallbacks.pmdb_apply = C.pmdb_apply_sm_handler_t(C.applyCgo)
 	cCallbacks.pmdb_read = C.pmdb_read_sm_handler_t(C.readCgo)
 	cCallbacks.pmdb_write_prep = C.pmdb_write_prep_sm_handler_t(C.writePrepCgo)
+	cCallbacks.pmdb_read_modify_write = C.pmdb_read_modify_write_sm_handler_t(C.readModifyWriteCgo)
 	cCallbacks.pmdb_init = C.pmdb_init_sm_handler_t(C.initCgo)
 
 	/*
