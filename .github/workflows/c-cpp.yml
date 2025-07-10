@@ -11,7 +11,11 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
     - name: apt update
       run: sudo apt update
     - name: dpkg / rpm prep (debug)
@@ -25,29 +29,23 @@ jobs:
     - name: clang version
       run: clang --version
 
-# niova-pumicedb submodule init
-    - name: submodule init
-      run: git submodule init && git submodule update
-
-# build backtrace submodule
     - name: build libbacktrace
       run: cd modules/libbacktrace/ && ./configure && make && sudo make install
 
-# niova-core submodule init
-    - name: submodule init (niova-core)
-      run: cd modules/niova-core && git submodule init && git submodule update
+    - name: Build niova-core for niova-raft
+      run: cd modules/niova-raft/modules/niova-core/ && 
+           ./prepare.sh &&
+           ./configure --enable-devel --prefix=/usr/local/niova/ && 
+           make -j 4 && 
+           make -j 4 check && 
+           make install
 
-# build niova-core
-    - name: build niova-core
-      run: git submodule update && cd modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/usr/local/niova &&
-        make -j 4 && make -j 4 check && sudo make install
-
-# build niova-raft
     - name: build niova-raft
-      run: git submodule update && cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
-        make -j 4 && make -j 4 check && sudo make install
+      run: ./prepare.sh &&
+            ./configure --enable-devel --prefix=/usr/local/niova/ --with-niova=/usr/local/niova/ &&
+            make -j 4 && 
+            make -j 4 check && 
+            make install
 
 # default build
     - name: prepare default build

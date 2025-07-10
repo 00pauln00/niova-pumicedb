@@ -11,7 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
     - name: apt update
       run: sudo apt update
@@ -26,24 +29,23 @@ jobs:
     - name: Install Ansible
       run:  pip3 install ansible==9.2
 
-
-    # Init submodules
-    - name: Init submodule
-      run: git submodule update --init --recursive
-
-      # Build backtrace
     - name: build libbacktrace
       run: cd modules/libbacktrace/ && ./configure && make && sudo make install
 
-      #Build niova-core
-    - name: build niova-core
-      run: git submodule update && cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
-        make -j 4 && make -j 4 check && make install
+    - name: Build niova-core for niova-raft
+      run: cd modules/niova-raft/modules/niova-core/ && 
+           ./prepare.sh &&
+           ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ && 
+           make -j 4 && 
+           make -j 4 check && 
+           make install
 
-      #Build niova-raft
-    - name: Compile niova-raft
-      run: cd modules/niova-raft/ && ./prepare.sh && ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel && make clean && make -j 4 && make install
+    - name: build niova-raft
+      run: ./prepare.sh &&
+            ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
+            make -j 4 && 
+            make -j 4 check && 
+            make install
 
     - name: make
       run: ./prepare.sh &&
@@ -60,7 +62,7 @@ jobs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       ref: niova_core_recipes_compatibility
+      #  ref: 
        path: ./holon
 
     - name: Copy holon repo
