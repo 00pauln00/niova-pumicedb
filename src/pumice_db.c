@@ -974,14 +974,15 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                                   &error, __func__,
                                   __LINE__);
             if (!cowr_sa)
-                raft_client_net_request_handle_error_set(
-                        rncr, error, 0, error);
-
+            {
+                raft_client_net_request_handle_error_set(rncr, error, 0, error);
+            }
             else // Request sequence test passes, will enter the raft log.
             {
                 int continue_wr = 1;
                 rc = pmdb_write_prep_cb(rncr, &continue_wr);
-                // If write_prep return success and allow to continue raft write.
+
+                // Check pmdb_write_prep_cb() value set in continue_wr
                 if (!rc && continue_wr)
                     pmdb_prep_raft_entry_write(rncr, &obj);
             }
@@ -1308,8 +1309,7 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
 
 
     // Call into the application so it may emplace its own KVs.
-    ssize_t apply_rc =
-        pmdbApi->pmdb_apply(&apply_args);
+    ssize_t apply_rc = pmdbApi->pmdb_apply(&apply_args);
 
     // rc of 0 means the client will get a reply and removal of coalesced
     // tree item only leader should send the reply back to client.
