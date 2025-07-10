@@ -38,7 +38,7 @@ jobs:
            ./configure --enable-devel --prefix=/usr/local/niova/ && 
            make -j 4 && 
            make -j 4 check && 
-           make install
+           sudo make install
 
     - name: build niova-raft
       run: cd modules/niova-raft && 
@@ -46,7 +46,7 @@ jobs:
             ./configure --enable-devel --prefix=/usr/local/niova/ --with-niova=/usr/local/niova/ &&
             make -j 4 && 
             make -j 4 check && 
-            make install
+            sudo make install
 
 # default build
     - name: prepare default build
