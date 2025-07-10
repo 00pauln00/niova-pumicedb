@@ -65,6 +65,9 @@ jobs:
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
+    - name: List dirs
+      run: ls -l
+
     - name: Build go applications using makefile
       run: cd go && make -e DIR=/home/runner/work/niovad/niovad/build_dir/
 
