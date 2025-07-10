@@ -55,7 +55,8 @@ jobs:
            make install
 
     - name: build niova-raft
-      run: ./prepare.sh &&
+      run: cd modules/niova-raft && 
+            ./prepare.sh &&
             ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
             make -j 4 && 
             make -j 4 check && 
