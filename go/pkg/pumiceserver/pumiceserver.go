@@ -27,6 +27,7 @@ import (
 extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);
+extern ssize_t readModifyWriteCgo(struct pumicedb_cb_cargs *args);
 extern void initCgo(struct pumicedb_cb_cargs *args);
 extern ssize_t retryWriteCgo(struct pumicedb_cb_cargs *args,void *);
 */
@@ -288,8 +289,6 @@ func goRetryWrite(args *C.struct_pumicedb_cb_cargs) int64 {
     var ret int64
     if reqType == PumiceDBCommon.APP_REQ {
         ret = gcb.PmdbAPI.RetryWrite(&retryArgs)
-    } else if reqType == PumiceDBCommon.LEASE_REQ {
-        ret = gcb.LeaseAPI.RetryWrite(&retryArgs)
     }
     return ret
 }
