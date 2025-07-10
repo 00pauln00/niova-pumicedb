@@ -7,11 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
-	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
-	"github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"os"
@@ -19,6 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
+	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	uuid "github.com/satori/go.uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -37,7 +38,7 @@ type FoodpalaceCli interface {
 	complete() error
 }
 
-//Structure definition to dump into json.
+// Structure definition to dump into json.
 type foodpalaceRqOp struct {
 	Operation string
 	Status    int
@@ -45,7 +46,7 @@ type foodpalaceRqOp struct {
 	Data      map[string]map[string]string
 }
 
-//Structure definition to store request specific information.
+// Structure definition to store request specific information.
 type rqInfo struct {
 	key            string
 	rncui          string
@@ -58,38 +59,38 @@ type rqInfo struct {
 	outfilename    string
 }
 
-//Structure definition for writeOne operation.
+// Structure definition for writeOne operation.
 type writeOne struct {
 	args []string
 	rq   *rqInfo
 }
 
-//Structure definition for writeMulti operation.
+// Structure definition for writeMulti operation.
 type writeMulti struct {
 	csvFpath     string
 	rq           *rqInfo
 	multiReqdata []*foodpalaceapplib.FoodpalaceData
 }
 
-//Structure definition for readOne operation.
+// Structure definition for readOne operation.
 type readOne struct {
 	rq *rqInfo
 }
 
-//Structure definition for readMulti operation.
+// Structure definition for readMulti operation.
 type readMulti struct {
 	rq      *rqInfo
 	rmRncui []string
 	rmData  []*foodpalaceapplib.FoodpalaceData
 }
 
-//Structure definition for getLeader operation.
+// Structure definition for getLeader operation.
 type getLeader struct {
 	rq       *rqInfo
 	pmdbInfo *PumiceDBCommon.PMDBInfo
 }
 
-//Function to initialize logger.
+// Function to initialize logger.
 func initLogger() error {
 
 	var filename string = jsonOutFpath + "/" + clientUuid + ".log"
@@ -116,13 +117,13 @@ func initLogger() error {
 	return err
 }
 
-//Function to get current time.
+// Function to get current time.
 func getCurrentTime() string {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	return timestamp
 }
 
-//Method to parse csv file and fill the required structures for writemulti operation.
+// Method to parse csv file and fill the required structures for writemulti operation.
 func (wm *writeMulti) getWmInfo() ([]*foodpalaceapplib.FoodpalaceData, error) {
 
 	var multireqDt []*foodpalaceapplib.FoodpalaceData
@@ -183,7 +184,7 @@ func (wm *writeMulti) getWmInfo() ([]*foodpalaceapplib.FoodpalaceData, error) {
 	return multireqDt, err
 }
 
-//Method to display output of read one operation and fill the structure.
+// Method to display output of read one operation and fill the structure.
 func (dro *readOne) displayAndFill(rdData *foodpalaceapplib.FoodpalaceData) {
 
 	restId := strconv.Itoa(int(rdData.RestaurantId))
@@ -203,7 +204,7 @@ func (dro *readOne) displayAndFill(rdData *foodpalaceapplib.FoodpalaceData) {
 	strdata.fillRo(dro)
 }
 
-//Method to display output of read multi operation and fill the structure.
+// Method to display output of read multi operation and fill the structure.
 func (drm *readMulti) displayAndFill(rmdt *foodpalaceRqOp, rdData *foodpalaceapplib.FoodpalaceData, i int) {
 
 	restId := strconv.Itoa(int(rdData.RestaurantId))
@@ -223,7 +224,7 @@ func (drm *readMulti) displayAndFill(rmdt *foodpalaceRqOp, rdData *foodpalaceapp
 	rmdt.fillRm(drm)
 }
 
-//Method to fill the output of write one operation.
+// Method to fill the output of write one operation.
 func (wo *foodpalaceRqOp) fillWo(wone *writeOne) {
 
 	//Get timestamp.
@@ -243,7 +244,7 @@ func (wo *foodpalaceRqOp) fillWo(wone *writeOne) {
 	wone.rq.outfilename = tmpOutfname
 }
 
-//Method to fill the output of write multi operation.
+// Method to fill the output of write multi operation.
 func (wml *foodpalaceRqOp) fillWm(wmul *writeMulti) {
 
 	//Get timestamp.
@@ -260,7 +261,7 @@ func (wml *foodpalaceRqOp) fillWm(wmul *writeMulti) {
 	fillMap(wrMp, wmul.rq.rncui)
 }
 
-//Method to fill the output of read one operation.
+// Method to fill the output of read one operation.
 func (rof *foodpalaceRqOp) fillRo(rone *readOne) {
 
 	//Get timestamp.
@@ -273,7 +274,7 @@ func (rof *foodpalaceRqOp) fillRo(rone *readOne) {
 	rone.rq.outfilename = tmpoutFilename
 }
 
-//Method to fill the output of read multi operation.
+// Method to fill the output of read multi operation.
 func (rmf *foodpalaceRqOp) fillRm(fprm *readMulti) {
 	//Get timestamp.
 	timestamp := getCurrentTime()
@@ -282,7 +283,7 @@ func (rmf *foodpalaceRqOp) fillRm(fprm *readMulti) {
 	rmf.Data = data
 }
 
-//prepare method for write one operation to fill the required structure.
+// prepare method for write one operation to fill the required structure.
 func (w *writeOne) prepare() error {
 
 	var err error
@@ -333,7 +334,7 @@ func (w *writeOne) prepare() error {
 	return err
 }
 
-//exec method for write one operation which performs write operation.
+// exec method for write one operation which performs write operation.
 func (woexc *writeOne) exec() error {
 
 	var errorMsg error
@@ -363,7 +364,7 @@ func (woexc *writeOne) exec() error {
 	return errorMsg
 }
 
-//complete method for write one operation which creates final json outfile.
+// complete method for write one operation which creates final json outfile.
 func (woc *writeOne) complete() error {
 
 	var cerr error
@@ -375,7 +376,7 @@ func (woc *writeOne) complete() error {
 	return cerr
 }
 
-//prepare method for read one operation to fill the required structure.
+// prepare method for read one operation to fill the required structure.
 func (rop *readOne) prepare() error {
 
 	var err error
@@ -395,7 +396,7 @@ func (rop *readOne) prepare() error {
 
 }
 
-//exec method for read one operation to perform read operation.
+// exec method for read one operation to perform read operation.
 func (roe *readOne) exec() error {
 
 	var roerr error
@@ -418,7 +419,7 @@ func (roe *readOne) exec() error {
 	return roerr
 }
 
-//complete method for read one operation which creates final json outfile.
+// complete method for read one operation which creates final json outfile.
 func (roc *readOne) complete() error {
 
 	var cerr error
@@ -430,7 +431,7 @@ func (roc *readOne) complete() error {
 	return cerr
 }
 
-//prepare method for write multi operation to fill the required structures.
+// prepare method for write multi operation to fill the required structures.
 func (wmp *writeMulti) prepare() error {
 
 	var wmperr error
@@ -443,7 +444,7 @@ func (wmp *writeMulti) prepare() error {
 	return wmperr
 }
 
-//exec method for write multi operation which performs write operation.
+// exec method for write multi operation which performs write operation.
 func (wme *writeMulti) exec() error {
 
 	var excerr error
@@ -499,7 +500,7 @@ func (wme *writeMulti) exec() error {
 	return excerr
 }
 
-//complete method for write multi operation which creates final json outfile.
+// complete method for write multi operation which creates final json outfile.
 func (wmc *writeMulti) complete() error {
 	var cerr error
 	//Copy contents in json outfile.
@@ -510,7 +511,7 @@ func (wmc *writeMulti) complete() error {
 	return cerr
 }
 
-///prepare method for read multi operation which creates required structure.
+// /prepare method for read multi operation which creates required structure.
 func (rmp *readMulti) prepare() error {
 	var prerr error
 	var rmreqDt []*foodpalaceapplib.FoodpalaceData
@@ -545,7 +546,7 @@ func (rmp *readMulti) prepare() error {
 	return prerr
 }
 
-//exec method for read multi operation which performs read operation.
+// exec method for read multi operation which performs read operation.
 func (rme *readMulti) exec() error {
 	var rmexcerr error
 	var rmdte = &foodpalaceRqOp{}
@@ -576,7 +577,7 @@ func (rme *readMulti) exec() error {
 	return rmexcerr
 }
 
-//complete method for read multi operation which creates final json outfile.
+// complete method for read multi operation which creates final json outfile.
 func (rmc *readMulti) complete() error {
 	var cerr error
 	//Copy contents in json outfile.
@@ -587,7 +588,7 @@ func (rmc *readMulti) complete() error {
 	return cerr
 }
 
-//prepare method for get leader opeation which creates structure.
+// prepare method for get leader opeation which creates structure.
 func (getLeader *getLeader) prepare() error {
 
 	var gleaerr error
@@ -604,7 +605,7 @@ func (getLeader *getLeader) prepare() error {
 	return gleaerr
 }
 
-//exec method for get leader operation.
+// exec method for get leader operation.
 func (getLeader *getLeader) exec() error {
 
 	var glexcerr error
@@ -626,7 +627,7 @@ func (getLeader *getLeader) exec() error {
 	return glexcerr
 }
 
-//complete method for get leader operation which creates final json outfile.
+// complete method for get leader operation which creates final json outfile.
 func (getLeader *getLeader) complete() error {
 
 	var cerr error
@@ -642,13 +643,13 @@ func (getLeader *getLeader) complete() error {
 	return cerr
 }
 
-//Function to fill data into map.
+// Function to fill data into map.
 func fillMap(mp map[string]string, rncui string) {
 	//Fill data into outer map.
 	data[rncui] = mp
 }
 
-//Method to dump foodpalace app output structure into json file.
+// Method to dump foodpalace app output structure into json file.
 func (zj *foodpalaceRqOp) dumpIntoJson(outfUuid string) string {
 
 	//prepare path for temporary json file.
@@ -658,7 +659,7 @@ func (zj *foodpalaceRqOp) dumpIntoJson(outfUuid string) string {
 	return tmpFname
 }
 
-//Method to copy temporary json file into output json file.
+// Method to copy temporary json file into output json file.
 func copyToOutfile(tmpFname, jsonFname string) error {
 
 	var errcp error
@@ -681,7 +682,7 @@ func copyToOutfile(tmpFname, jsonFname string) error {
 	return errcp
 }
 
-//Function to get command line parameters while starting of the client.
+// Function to get command line parameters while starting of the client.
 func getCmdParams() {
 	flag.StringVar(&raftUuid, "r", "NULL", "raft uuid")
 	flag.StringVar(&clientUuid, "u", "NULL", "client uuid")
@@ -694,8 +695,8 @@ func getCmdParams() {
 	log.Info("Command:", cmd)
 }
 
-//Creates log directory if it doesn't exist.
-//and if dir path is not passed then it will create log file in current directory by default.
+// Creates log directory if it doesn't exist.
+// and if dir path is not passed then it will create log file in current directory by default.
 func makeDirectoryIfNotExists() error {
 	if _, err := os.Stat(jsonOutFpath); os.IsNotExist(err) {
 		return os.Mkdir(jsonOutFpath, os.ModeDir|0755)

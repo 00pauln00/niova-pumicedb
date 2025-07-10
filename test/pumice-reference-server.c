@@ -363,6 +363,7 @@ main(int argc, char **argv)
         .pmdb_init         = NULL,
         .pmdb_apply        = pmdbts_apply,
         .pmdb_read         = pmdbts_read,
+        .pmdb_retry_wr = NULL,
     };
 
     const char *cf_names[1] = {pmdbts_column_family_name};

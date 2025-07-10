@@ -2,20 +2,21 @@ package main
 
 import (
 	"bytes"
-	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
-	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
 	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"os"
 	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -56,7 +57,7 @@ func usage() {
 	os.Exit(0)
 }
 
-//Function to get command line parameters
+// Function to get command line parameters
 func (handler *clientHandler) getCmdParams() {
 	flag.StringVar(&handler.configPath, "c", "./config", "config file path")
 	flag.StringVar(&handler.logPath, "l", ".", "log file path")
@@ -71,7 +72,7 @@ func (handler *clientHandler) getCmdParams() {
 	flag.Parse()
 }
 
-//Function to validate the read
+// Function to validate the read
 func (handler *clientHandler) validate_read(key string, value []byte) bool {
 	keyPrefixLen := len(handler.keyPrefix)
 	keyIdentifier := []byte(key[keyPrefixLen:])
@@ -80,7 +81,7 @@ func (handler *clientHandler) validate_read(key string, value []byte) bool {
 	return reflect.DeepEqual(keyIdentifier, valueIdentifier)
 }
 
-//Function to send the request
+// Function to send the request
 func (handler *clientHandler) sendReq(req *requestResponseLib.KVRequest, write bool) {
 	//Record request start time
 	sendTime := time.Now()
@@ -147,7 +148,7 @@ func (handler *clientHandler) sendReq(req *requestResponseLib.KVRequest, write b
 	handler.operationsWait.Done()
 }
 
-//Do reads and write
+// Do reads and write
 func (handler *clientHandler) do_WriteNRead(n int, write bool) []opData {
 	var operation string
 	handler.operationMetaObjs = nil
@@ -183,7 +184,7 @@ func (handler *clientHandler) do_WriteNRead(n int, write bool) []opData {
 	return handler.operationMetaObjs
 }
 
-//Log summary
+// Log summary
 func (handler *clientHandler) logSummary(opcode string, n int) {
 	sum := 0
 	for _, ops := range handler.operationMetaObjs {
@@ -193,13 +194,13 @@ func (handler *clientHandler) logSummary(opcode string, n int) {
 	log.Info("Avg ", opcode, " response time : ", sum/n, " milli sec")
 }
 
-//Write to Json
+// Write to Json
 func (handler *clientHandler) write_Json(toJson map[string][]opData) {
 	file, _ := json.MarshalIndent(toJson, "", " ")
 	_ = ioutil.WriteFile(handler.resultFile+".json", file, 0644)
 }
 
-//Print progress
+// Print progress
 func (handler *clientHandler) print_progress(operation string, totalRequest int) {
 	fmt.Println(" ")
 	for handler.requestSentCount != int64(totalRequest) {

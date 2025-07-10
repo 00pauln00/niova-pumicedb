@@ -964,6 +964,19 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
         obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
     {
         raft_client_net_request_handle_error_set(rncr, -EALREADY, 0, 0);
+        // pmdbApi->pmdb_retry_wr callback
+        SIMPLE_LOG_MSG(LL_WARN, "pmdbApi->pmdb_retry_wr callback");
+        if (pmdbApi->pmdb_retry_wr) {
+            SIMPLE_LOG_MSG(LL_WARN, "pmdbApi->pmdb_retry_wr callback inside IF");
+            struct pumicedb_cb_cargs retry_cb_args;
+            
+            pumicedb_init_cb_args(rncui, pmdb_req->pmdbrm_data,
+                                pmdb_req->pmdbrm_data_size,
+                                NULL, 0, 0, NULL, NULL,
+                                pmdb_user_data, &retry_cb_args);
+            pmdbApi->pmdb_retry_wr(&retry_cb_args);
+        }
+        
     }
     else if (pmdb_req->pmdbrm_write_seqno == (obj.pmdb_obj_commit_seqno + 1))
     {

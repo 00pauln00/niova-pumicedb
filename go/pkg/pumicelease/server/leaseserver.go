@@ -698,3 +698,7 @@ func (lso *LeaseServerObject) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 		log.Error("Invalid init state: %d", initPeerArgs.InitState)
 	}
 }
+
+func (lso *LeaseServerObject) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+	return 0
+}
