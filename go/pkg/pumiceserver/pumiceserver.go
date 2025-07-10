@@ -28,6 +28,7 @@ extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);
 extern void initCgo(struct pumicedb_cb_cargs *args);
+extern ssize_t retryWriteCgo(struct pumicedb_cb_cargs *args,void *);
 */
 import "C"
 
@@ -53,6 +54,7 @@ type PmdbServerAPI interface {
 	Read(goCbArgs *PmdbCbArgs) int64
 	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
+	RetryWrite(goCbArgs *PmdbCbArgs) int64
 }
 
 type LeaseServerAPI interface {
@@ -69,6 +71,7 @@ type FuncServerAPI interface {
 	Read(goCbArgs *PmdbCbArgs) int64
 	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
+	RetryWrite(goCbArgs *PmdbCbArgs) int64
 }
 
 type PmdbServerObject struct {
@@ -276,6 +279,21 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 	}
 }
 
+//export goRetryWrite
+func goRetryWrite(args *C.struct_pumicedb_cb_cargs) int64 {
+    var retryArgs PmdbCbArgs
+    reqType := pmdbCbArgsInit(args, &retryArgs)
+    gcb := gopointer.Restore(retryArgs.UserData).(*PmdbServerObject)
+
+    var ret int64
+    if reqType == PumiceDBCommon.APP_REQ {
+        ret = gcb.PmdbAPI.RetryWrite(&retryArgs)
+    } else if reqType == PumiceDBCommon.LEASE_REQ {
+        ret = gcb.LeaseAPI.RetryWrite(&retryArgs)
+    }
+    return ret
+}
+
 /**
  * Start the pmdb server.
  * @raft_uuid: Raft UUID.
@@ -311,6 +329,7 @@ func PmdbStartServer(pso *PmdbServerObject) error {
 	cCallbacks.pmdb_write_prep = C.pmdb_write_prep_sm_handler_t(C.writePrepCgo)
 	cCallbacks.pmdb_read_modify_write = C.pmdb_read_modify_write_sm_handler_t(C.readModifyWriteCgo)
 	cCallbacks.pmdb_init = C.pmdb_init_sm_handler_t(C.initCgo)
+	cCallbacks.pmdb_retry_wr = C.pmdb_retry_wr_sm_handler_t(C.retryWriteCgo)
 
 	/*
 	 * Store the column family name into char * array.

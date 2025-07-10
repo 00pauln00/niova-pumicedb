@@ -222,3 +222,10 @@ func main() {
 		log.Error(err)
 	}
 }
+
+
+func (cso *FoodpalaceServer) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+    fmt.Println("RetryWrite callback for duplicate rncui")
+	log.Info("RetryWrite callback for duplicate rncui")
+    return 0
+}

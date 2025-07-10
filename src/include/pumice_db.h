@@ -20,6 +20,8 @@ typedef ssize_t pumicedb_write_prep_ctx_ssize_t;
 typedef ssize_t pumicedb_read_modify_write_ctx_ssize_t;
 typedef ssize_t pumicedb_read_ctx_ssize_t;
 typedef void    pumicedb_init_ctx_void_t;
+typedef ssize_t pumicedb_retry_wr_ctx_ssize_t;
+
 
 //common arguments for pumicedb callback functions.
 struct pumicedb_cb_cargs
@@ -87,6 +89,9 @@ typedef pumicedb_read_modify_write_ctx_ssize_t
 typedef pumicedb_init_ctx_void_t
 (*pmdb_init_sm_handler_t)(struct pumicedb_cb_cargs *args);
 
+typedef pumicedb_retry_wr_ctx_ssize_t
+(*pmdb_retry_wr_sm_handler_t)(struct pumicedb_cb_cargs *args);
+
 struct PmdbAPI
 {
     pmdb_write_prep_sm_handler_t      pmdb_write_prep;
@@ -94,6 +99,7 @@ struct PmdbAPI
     pmdb_apply_sm_handler_t           pmdb_apply;
     pmdb_read_sm_handler_t            pmdb_read;
     pmdb_init_sm_handler_t            pmdb_init;
+    pmdb_retry_wr_sm_handler_t        pmdb_retry_wr;
 };
 
 /**

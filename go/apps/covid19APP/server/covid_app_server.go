@@ -137,7 +137,6 @@ func (cso *CovidServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
 func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	log.Info("Covid19_Data app server: Apply request received")
-
 	/* Decode the input buffer into structure format */
 	applyCovid := &CovidAppLib.CovidLocale{}
 
@@ -242,4 +241,10 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Reply size: ", replySize)
 
 	return replySize
+}
+
+func (cso *CovidServer) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+    fmt.Println("RetryWrite callback for duplicate rncui")
+	log.Info("RetryWrite callback for duplicate rncui")
+    return 0
 }
