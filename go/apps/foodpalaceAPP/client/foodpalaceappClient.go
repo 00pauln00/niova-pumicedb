@@ -8,12 +8,12 @@ import (
 	"flag"
 	"fmt"
 	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
+	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
-	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"os"
 	"os/exec"
 	"strconv"
@@ -341,15 +341,15 @@ func (woexc *writeOne) exec() error {
 	var replySize int64
 
 	//Perform write operation.
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: 	 woexc.args[1],
-		ReqED: 	 woexc.rq.foodpalaceData,
-		ReplySize: &replySize,
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       woexc.args[1],
+		ReqED:       woexc.rq.foodpalaceData,
+		ReplySize:   &replySize,
 		GetResponse: 0,
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	_, err := woexc.rq.clientObj.Write(reqArgs)
+	_, err := woexc.rq.clientObj.Put(reqArgs)
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -401,13 +401,13 @@ func (roe *readOne) exec() error {
 	var roerr error
 	//Perform read operation.
 	rop := &foodpalaceapplib.FoodpalaceData{}
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: "",
-		ReqED: roe.rq.foodpalaceData,
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:      "",
+		ReqED:      roe.rq.foodpalaceData,
 		ResponseED: rop,
 	}
 
-	err := roe.rq.clientObj.Read(reqArgs)
+	err := roe.rq.clientObj.Get(reqArgs)
 	if err != nil {
 		log.Error("Read request failed !!", err)
 		rdt := &foodpalaceRqOp{Status: -1}
@@ -481,7 +481,7 @@ func (wme *writeMulti) exec() error {
 		reqArgs.ReplySize = &replySize
 		reqArgs.GetResponse = 0
 
-		_, err := wme.rq.clientObj.Write(&reqArgs)
+		_, err := wme.rq.clientObj.Put(&reqArgs)
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
@@ -555,12 +555,12 @@ func (rme *readMulti) exec() error {
 		for i := range rme.rmData {
 			//Perform read operation.
 			rmopDt := &foodpalaceapplib.FoodpalaceData{}
-			reqArgs = &PumiceDBClient.PmdbReqArgs {
-				Rncui: "",
-				ReqED: rme.rmData[i],
+			reqArgs = &PumiceDBClient.PmdbReqArgs{
+				Rncui:      "",
+				ReqED:      rme.rmData[i],
 				ResponseED: rmopDt,
 			}
-			err := rme.rq.clientObj.Read(reqArgs)
+			err := rme.rq.clientObj.Get(reqArgs)
 			if err != nil {
 				rmdte = &foodpalaceRqOp{Status: -1}
 				rmdte.fillRm(rme)

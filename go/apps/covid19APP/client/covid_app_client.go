@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
-	"github.com/00pauln00/niova-pumicedb/go/apps/covid19APP/lib"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/00pauln00/niova-pumicedb/go/apps/covid19APP/lib"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -515,14 +515,14 @@ func (wrObj *wrOne) exec() error {
 	var wrData = &covidVaxData{}
 	var replySize int64
 
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: wrObj.op.rncui,
-		ReqED: wrObj.op.covidData,
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       wrObj.op.rncui,
+		ReqED:       wrObj.op.covidData,
 		GetResponse: 0,
-		ReplySize: &replySize,
+		ReplySize:   &replySize,
 	}
 	//Perform write Operation.
-	_, err := wrObj.op.cliObj.Write(reqArgs)
+	_, err := wrObj.op.cliObj.Put(reqArgs)
 
 	if err != nil {
 		errMsg = errors.New("exec() method failed for WriteOne.")
@@ -591,13 +591,13 @@ func (rdObj *rdOne) exec() error {
 	resStruct := &CovidAppLib.CovidLocale{}
 
 	//read Operation
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: "",
-		ReqED: rdObj.op.covidData,
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:      "",
+		ReqED:      rdObj.op.covidData,
 		ResponseED: resStruct,
 	}
 
-	err := rdObj.op.cliObj.Read(reqArgs)
+	err := rdObj.op.cliObj.Get(reqArgs)
 
 	if err != nil {
 
@@ -719,7 +719,7 @@ func (wmObj *wrMul) exec() error {
 		reqArgs.GetResponse = 0
 		reqArgs.ReplySize = &replySize
 
-		_, err := wmObj.op.cliObj.Write(&reqArgs)
+		_, err := wmObj.op.cliObj.Put(&reqArgs)
 		if err != nil {
 			wmData.Status = -1
 			log.Info("Write key-value failed : ", err)
@@ -817,7 +817,7 @@ func (rmObj *rdMul) exec() error {
 			reqArgs.ReqED = rmObj.multiRead[i]
 			reqArgs.ResponseED = resStruct
 
-			err := rmObj.op.cliObj.Read(&reqArgs)
+			err := rmObj.op.cliObj.Get(&reqArgs)
 
 			if err != nil {
 

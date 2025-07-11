@@ -10,7 +10,7 @@
 	url = https://github.com/00pauln00/holon.git
 [submodule "modules/niova-core"]
 	path = modules/niova-core
-	url = https://github.com/00pauln00/niova-core.git
+	url = git@github.com:00pauln00/niova-core.git
 [submodule "modules/niova-raft"]
 	path = modules/niova-raft
-	url = https://github.com/00pauln00/niova-raft
+	url = git@github.com:00pauln00/niova-raft.git

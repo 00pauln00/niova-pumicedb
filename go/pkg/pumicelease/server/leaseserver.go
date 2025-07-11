@@ -2,21 +2,23 @@ package leaseServer
 
 import (
 	"bytes"
-	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	list "container/list"
 	"encoding/gob"
+	"errors"
+	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
-	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"sync"
 	"time"
 	"unsafe"
-	"errors"
 )
 
 var ttlDefault = 60
 var gcTimeout = 35
+
 const MAX_SINGLE_GC_REQ = 100
+
 var LEASE_COLUMN_FAMILY = "NIOVA_LEASE_CF"
 
 const (
@@ -26,9 +28,9 @@ const (
 	CONTINUE_WR       = 1
 
 	//List operations
-	PUSH = 0
+	PUSH         = 0
 	MOVE_TO_BACK = 1
-	REMOVE = 2
+	REMOVE       = 2
 )
 
 type LeaseServerObject struct {
@@ -82,18 +84,19 @@ func (lso *LeaseServerObject) isPermitted(entry *leaseLib.LeaseMeta, clientUUID 
 		return false
 	case leaseLib.EXPIRED:
 		//Allow GET from any client
-                if (operation == leaseLib.GET) {
-                        return true
-                }
-                //Reject REFRESH from any client
-                return false
+		if operation == leaseLib.GET {
+			return true
+		}
+		//Reject REFRESH from any client
+		return false
 	case leaseLib.GRANTED:
 		//Allow REFRESH from the same client
-		if (operation == leaseLib.REFRESH) && (clientUUID == entry.Client) {
-                        return true
-                }
+		if (operation == leaseLib.REFRESH) &&
+			(clientUUID == entry.Client) {
+			return true
+		}
 		//Reject any other request
-                return false
+		return false
 	}
 	return false
 }
@@ -105,15 +108,14 @@ func Decode(payload []byte) (leaseLib.LeaseReq, error) {
 	return *r, err
 }
 
-
 func (lso *LeaseServerObject) listOperation(element *leaseLib.LeaseInfo, opcode int, sanityCheck bool) {
 	//Sanity check
-	if ((sanityCheck) && (lso.listObj.Len() > 0)) {
+	if (sanityCheck) && (lso.listObj.Len() > 0) {
 		listOrderSanityCheck(lso.listObj.Back().Value.(*leaseLib.LeaseInfo), element)
-        }
-	
-	switch opcode { 
-	case PUSH:	
+	}
+
+	switch opcode {
+	case PUSH:
 		lso.listObj.PushBack(element)
 	case MOVE_TO_BACK:
 		lso.listObj.MoveToBack(element.ListElement)
@@ -140,7 +142,7 @@ func (lso *LeaseServerObject) GetLeaderTimeStamp(ts *leaseLib.LeaderTS) error {
 	}
 	var plts PumiceDBServer.PmdbLeaderTS
 	rc := PumiceDBServer.PmdbGetLeaderTimeStamp(&plts)
-	if (rc == nil) {
+	if rc == nil {
 		ts.LeaderTerm = plts.Term
 		ts.LeaderTime = plts.Time
 	}
@@ -157,7 +159,7 @@ func (handler *LeaseServerReqHandler) doRefresh() int {
 	switch l.LeaseMetaInfo.LeaseState {
 	case leaseLib.INPROGRESS:
 		fallthrough
-	
+
 	case leaseLib.STALE_INPROGRESS:
 		return ERROR
 
@@ -176,7 +178,7 @@ func (handler *LeaseServerReqHandler) doRefresh() int {
 		if err != nil {
 			return ERROR
 		}
-		
+
 		l.LeaseMetaInfo.TimeStamp = currentTime
 		l.LeaseMetaInfo.TTL = ttlDefault
 
@@ -285,9 +287,9 @@ func (handler *LeaseServerReqHandler) readLease() int {
 	defer handler.LeaseServerObj.leaseLock.Unlock()
 
 	l, isPresent := handler.LeaseServerObj.LeaseMap[handler.LeaseReq.Resource]
-        if (!isPresent) || (isPresent && l.LeaseMetaInfo.LeaseState == leaseLib.INPROGRESS) {
-        	return ERROR
-        }
+	if (!isPresent) || (isPresent && l.LeaseMetaInfo.LeaseState == leaseLib.INPROGRESS) {
+		return ERROR
+	}
 
 	switch handler.LeaseReq.Operation {
 	case leaseLib.LOOKUP:
@@ -367,7 +369,7 @@ func (handler *LeaseServerReqHandler) initLease() (*leaseLib.LeaseInfo, error) {
 	var lo leaseLib.LeaseInfo
 	var lop *leaseLib.LeaseInfo
 	handler.LeaseServerObj.leaseLock.Lock()
-	
+
 	//Check if resource is already present in the map, if not create new entry
 	lop, isPresent := handler.LeaseServerObj.LeaseMap[handler.LeaseReq.Resource]
 	if !isPresent {
@@ -375,13 +377,13 @@ func (handler *LeaseServerReqHandler) initLease() (*leaseLib.LeaseInfo, error) {
 		lop.LeaseMetaInfo.Resource = handler.LeaseReq.Resource
 		lop.LeaseMetaInfo.Client = handler.LeaseReq.Client
 		handler.LeaseServerObj.LeaseMap[handler.LeaseReq.Resource] = lop
-	} 
+	}
 
 	err := handler.LeaseServerObj.GetLeaderTimeStamp(&lop.LeaseMetaInfo.TimeStamp)
 	//Check if lease state was set to inprogress in leader
-        if (err == nil) && (lop.LeaseMetaInfo.LeaseState != leaseLib.INPROGRESS) {
+	if (err == nil) && (lop.LeaseMetaInfo.LeaseState != leaseLib.INPROGRESS) {
 		log.Fatal("Wrong state transition identified in GET lease, expected INPROGRESS, identified : ", lop.LeaseMetaInfo.LeaseState)
-        }
+	}
 
 	lop.LeaseMetaInfo.LeaseState = leaseLib.GRANTED
 	lop.LeaseMetaInfo.TTL = ttlDefault
@@ -437,7 +439,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		//Set lease as expired
 		resource := handler.LeaseReq.Resources[i]
 		isLeader := PumiceDBServer.PmdbIsLeader()
-		
+
 		//Obtain lock
 		handler.LeaseServerObj.leaseLock.Lock()
 
@@ -516,7 +518,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		}
 		replySizeRc, copyErr = lso.Pso.CopyDataToBuffer(returnObj,
 			applyArgs.ReplyBuf)
-			if copyErr != nil {
+		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)
 			return int64(ERROR)
 		}
@@ -586,7 +588,6 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 	return err
 }
 
-
 func (lso *LeaseServerObject) leaseGarbageCollector() {
 	//Init ticker
 	//Sleep default at init
@@ -615,10 +616,9 @@ func (lso *LeaseServerObject) leaseGarbageCollector() {
 
 				//We dont process lease which are marked as STALE_INPROGRESS
 				//and if StaleRetry is set to false
-				if (!obj.StaleRetry && obj.LeaseState == leaseLib.STALE_INPROGRESS) {
+				if !obj.StaleRetry && obj.LeaseState == leaseLib.STALE_INPROGRESS {
 					continue
-				} 
-				
+				}
 
 				cobj.LeaseMetaInfo.StaleRetry = false
 				if lso.isExpired(obj.TimeStamp) {
@@ -641,9 +641,9 @@ func (lso *LeaseServerObject) leaseGarbageCollector() {
 			if stopScan {
 				if e.Next() != nil {
 					nextLease := e.Value.(*leaseLib.LeaseInfo).LeaseMetaInfo.TimeStamp.LeaderTime
-                        		var ct leaseLib.LeaderTS
-                        		lso.GetLeaderTimeStamp(&ct)
-                        		sleep = nextLease + int64(ttlDefault) - ct.LeaderTime
+					var ct leaseLib.LeaderTS
+					lso.GetLeaderTimeStamp(&ct)
+					sleep = nextLease + int64(ttlDefault) - ct.LeaderTime
 					//Avoid negative value for sleep
 					if sleep < 0 {
 						sleep = 0
@@ -662,25 +662,25 @@ func (lso *LeaseServerObject) leaseGarbageCollector() {
 		//Send GC request if only expired lease found
 		rc := lso.sendGCReq(rUUIDs, index, ct.LeaderTerm)
 		switch rc {
-        	case 0:
-                	log.Trace("GC request successful")
-        	case -11:
-                	log.Error("Retry stale lease request")
-                	lso.leaseLock.Lock()
-                	for i := 0; i < index; i++ {
-                        	l, isPresent := lso.LeaseMap[rUUIDs[i]]
-                        	if (!isPresent) || (isPresent && l.LeaseMetaInfo.LeaseState != leaseLib.STALE_INPROGRESS) {
-                                	log.Error("(sendGCReq) GCed resource is not present or have modified state", rUUIDs[i])
-                                	continue
-                        	}
-                        	l.LeaseMetaInfo.StaleRetry = true
-                	}
-                	lso.leaseLock.Unlock()
-                	sleep = 1
-        	default:
-                	log.Error("Failed to send stale lease processing request : ", err)
+		case 0:
+			log.Trace("GC request successful")
+		case -11:
+			log.Error("Retry stale lease request")
+			lso.leaseLock.Lock()
+			for i := 0; i < index; i++ {
+				l, isPresent := lso.LeaseMap[rUUIDs[i]]
+				if (!isPresent) || (isPresent && l.LeaseMetaInfo.LeaseState != leaseLib.STALE_INPROGRESS) {
+					log.Error("(sendGCReq) GCed resource is not present or have modified state", rUUIDs[i])
+					continue
+				}
+				l.LeaseMetaInfo.StaleRetry = true
+			}
+			lso.leaseLock.Unlock()
+			sleep = 1
+		default:
+			log.Error("Failed to send stale lease processing request : ", err)
 
-        	}
+		}
 	}
 }
 
