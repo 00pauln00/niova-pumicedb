@@ -72,7 +72,9 @@ jobs:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
     - name: Build go applications using makefile
-      run: ls -al && cd go && make -e DIR=/home/runner/work/niovad/niovad/build_dir/
+      run: export PATH=$PATH:/home/runner/work/go/go/bin &&
+           ls -al && which go && cd go &&
+           make -e DIR=/home/runner/work/niovad/niovad/build_dir/
 
 # Checkout holon repo
     - name: Checkout repository
