@@ -53,20 +53,20 @@ jobs:
 # build niova-core
     - name: build niova-core
       run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --enable-asan --prefix=/usr/local/niova &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && sudo make install
 
 # build niova-raft
     - name: build niova-raft
       run: cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-devel --enable-asan --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && sudo make install
 #
 #### End Submodule Bits
 #
     - name: make
       run: ./prepare.sh &&
-           ./configure --with-niova=/usr/local/niova/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
+           ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
            make clean && make && make install
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
