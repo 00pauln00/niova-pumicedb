@@ -1,4 +1,4 @@
-name: holon_basic_recipes_workflow
+name: basic_recipes
 on:
   push:
     branches: [ main ]

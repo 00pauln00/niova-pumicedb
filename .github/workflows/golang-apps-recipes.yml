@@ -1,4 +1,4 @@
-name: holon_golang_apps_recipes_workflow
+name: golang_apps
 on:
   push:
     branches: [ main ]

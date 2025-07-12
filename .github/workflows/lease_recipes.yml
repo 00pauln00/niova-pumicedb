@@ -1,4 +1,4 @@
-name: holon_lease_recipes_workflow
+name: lease_recipes
 on:
   push:
     branches: [ main ]

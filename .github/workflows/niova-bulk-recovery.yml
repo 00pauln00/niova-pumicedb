@@ -1,4 +1,4 @@
-name: holon_bulk_recovery_recipes_workflow
+name: bulk_recovery_recipes
 on:
   push:
     branches: [ main ]

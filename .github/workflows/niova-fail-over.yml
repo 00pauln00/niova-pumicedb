@@ -1,4 +1,4 @@
-name: holon_failover_workflow
+name: failover
 on:
   push:
     branches: [ main ]

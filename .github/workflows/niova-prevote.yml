@@ -1,4 +1,4 @@
-name: holon_prevote_recipes_workflow
+name: prevote_recipes
 on:
   push:
     branches: [ main ]
