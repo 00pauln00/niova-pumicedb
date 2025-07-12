@@ -10,12 +10,14 @@ runs:
            echo "***** Code Coverage Report *****" &&
            go tool covdata percent -i=./ &&
            echo "***** End *****"
+      shell: bash
 
     - name: Prepare artifact filename
       id: prepare_artifact_filename
       run: |
         echo ::set-output name=ARTIFACT_NAME::test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}
       if: failure()
+      shell: bash
 
     - name: Archive the test results
       uses: actions/upload-artifact@v4
