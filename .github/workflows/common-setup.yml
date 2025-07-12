@@ -1,0 +1,94 @@
+name: Common CI Setup
+
+on:
+  workflow_call:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: apt update
+      run: sudo apt update
+
+    - name: dpkg / rpm prep
+      run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
+
+# Install golang
+    - name: Install golang 1.20.3
+      run: sudo rm -rf /usr/bin/go &&
+           sudo wget https://golang.org/dl/go1.20.3.linux-amd64.tar.gz &&
+           sudo mkdir /home/runner/work/go &&
+           sudo tar -C /home/runner/work/go -xzf go1.20.3.linux-amd64.tar.gz &&
+           export PATH=$PATH:/home/runner/work/go/go/bin &&
+           go version
+
+# Install python libraies
+    - name: Install python libraries
+      run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
+
+# Install Ansible
+    - name: Install Ansible
+      run:  pip3 install ansible==9.2
+
+#
+#### Submodule Bits
+# niova-pumicedb submodule init
+    - name: submodule init
+      run: git submodule init && git submodule update
+
+# build backtrace submodule
+    - name: build libbacktrace
+      run: cd modules/libbacktrace/ && ./configure && make && sudo make install
+
+# niova-raft submodule init
+    - name: submodule init (niova-raft)
+      run: cd modules/niova-raft && git submodule init && git submodule update
+
+# niova-core submodule init
+    - name: submodule init (niova-core)
+      run: cd modules/niova-raft/modules/niova-core && git submodule init && git submodule update
+
+# build niova-core
+    - name: build niova-core
+      run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
+        ./configure --enable-devel --enable-asan --prefix=/usr/local/niova &&
+        make -j 4 && make -j 4 check && sudo make install
+
+# build niova-raft
+    - name: build niova-raft
+      run: cd modules/niova-raft/ && ./prepare.sh &&
+        ./configure --enable-devel --enable-asan --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
+        make -j 4 && make -j 4 check && sudo make install
+#
+#### End Submodule Bits
+#
+    - name: make
+      run: ./prepare.sh &&
+           ./configure --with-niova=/usr/local/niova/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
+           make clean && make && make install
+      env:
+        LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
+
+    - name: Build go applications using makefile
+      run: cd go && make -e DIR=/home/runner/work/niovad/niovad/build_dir/
+
+# Checkout holon repo
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+       repository: 00pauln00/holon
+       ref: niova_core_recipes_compatibility
+       path: ./holon
+
+    - name: Copy holon repo
+      run: cp -r ./holon /home/runner/work/niovad/niovad/build_dir/
+
+    - name: Create log directory for storing holon logs
+      run: mkdir  /home/runner/work/niovad/niovad/holon_log
+
+# GCOV Setup
+    - name: Create dir for cover data counters, metadata to be placed
+      run: mkdir  /home/runner/work/niovad/niovad/code_cov &&
+           export GOCOVERDIR=/work/niovad/niovad/code_cov
