@@ -18,9 +18,9 @@ jobs:
 # Install golang
     - name: Install golang 1.20.3
       run: sudo rm -rf /usr/bin/go /bin/go &&
-           sudo wget https://golang.org/dl/go1.20.3.linux-amd64.tar.gz &&
-           sudo mkdir /home/runner/work/go &&
-           sudo tar -C /home/runner/work/go -xzf go1.20.3.linux-amd64.tar.gz &&
+           wget https://golang.org/dl/go1.20.3.linux-amd64.tar.gz &&
+           mkdir -p /home/runner/work/go &&
+           tar -C /home/runner/work/go -xzf go1.20.3.linux-amd64.tar.gz &&
            sudo ln -s /home/runner/work/go/go/bin/go /bin/ &&
            go version
 
@@ -31,6 +31,9 @@ jobs:
 # Install Ansible
     - name: Install Ansible
       run:  pip3 install ansible==9.2
+
+    - name: Build Dir
+      run:  mkdir -p /home/runner/work/niovad/niovad/build_dir/
 
 #
 #### Submodule Bits
@@ -54,26 +57,28 @@ jobs:
     - name: build niova-core
       run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
         ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
-        make -j 4 && make -j 4 check && sudo make install
+        make -j 4 && make -j 4 check && make install
 
 # build niova-raft
     - name: build niova-raft
       run: cd modules/niova-raft/ && ./prepare.sh &&
         ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
-        make -j 4 && make -j 4 check && sudo make install
+        make -j 4 && make -j 4 check && make install
 #
 #### End Submodule Bits
 #
     - name: make
       run: ./prepare.sh &&
            ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-devel &&
-           make clean && make && sudo make install
+           make clean && make && make install
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
     - name: Build go applications using makefile
-      run: ls -al && which go && cd go &&
-           sudo make -e DIR=/home/runner/work/niovad/niovad/build_dir/
+      run: ls -al &&
+           which go &&
+	   cd go &&
+           make -e DIR=/home/runner/work/niovad/niovad/build_dir/
 
 # Checkout holon repo
     - name: Checkout repository
