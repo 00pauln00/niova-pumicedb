@@ -6,19 +6,12 @@ on:
     branches: [ main ]
 
 jobs:
-  setup:
-    uses: ./.github/workflows/common-setup.yml
-
   run-recipes:
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    continue-on-error: true
-    needs: setup
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Are files from setup present
-      run: find /home/runner
+    - uses: ./.github/workflows/common-setup.yml
+#    - uses: actions/checkout@v4
 
     - name: Copy script to Holon
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&

@@ -1,13 +1,10 @@
 name: Common CI Setup
 
-on:
-  workflow_call:
-
-jobs:
-  setup:
-    runs-on: ubuntu-latest
+runs:
+    using: "composite"
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
 
     - name: apt update
       run: sudo apt update
@@ -24,7 +21,7 @@ jobs:
            sudo ln -s /home/runner/work/go/go/bin/go /bin/ &&
            go version
 
-# Install python libraies
+# Install python libraries
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
 
