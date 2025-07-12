@@ -17,6 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Are files from setup present
+      run: find /home/runner
+
     - name: Copy script to Holon
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp scripts/lease_recipes.txt /home/runner/work/niovad/niovad/build_dir/
