@@ -8,6 +8,7 @@ runs:
 
     - name: apt update
       run: sudo apt update
+      shell: bash
 
     - name: dpkg / rpm prep
       run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
