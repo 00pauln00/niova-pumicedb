@@ -77,7 +77,7 @@ jobs:
     - name: Build go applications using makefile
       run: ls -al &&
            which go &&
-	   cd go &&
+           cd go &&
            make -e DIR=/home/runner/work/niovad/niovad/build_dir/
 
 # Checkout holon repo
