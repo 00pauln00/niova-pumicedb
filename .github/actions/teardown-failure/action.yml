@@ -1,22 +1,13 @@
-name: Common CI Teardown
+name: Common CI Teardown on Failure
 
 runs:
     using: "composite"
     steps:
 
-    - name: Run go covdata tool to generate code cover report
-      run: cd /home/runner/work/niovad/niovad/code_cov &&
-           export PATH=$PATH:/home/runner/work/go/go/bin &&
-           echo "***** Code Coverage Report *****" &&
-           go tool covdata percent -i=./ &&
-           echo "***** End *****"
-      shell: bash
-
     - name: Prepare artifact filename
       id: prepare_artifact_filename
       run: |
         echo ::set-output name=ARTIFACT_NAME::test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}
-      if: failure()
       shell: bash
 
     - name: Archive the test results
