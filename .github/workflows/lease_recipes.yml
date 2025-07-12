@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v4
     - uses: ./.github/actions/common-setup.yml
-#    - uses: actions/checkout@v4
 
     - name: Copy script to Holon
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
