@@ -9,79 +9,20 @@ jobs:
   build:
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v4
-
-    - name: apt update
-      run: sudo apt update
-
-    - name: dpkg / rpm prep
-      run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
-
-    - name: Install python libraries
-      run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
-
-      # Install Ansible
-    - name: Install Ansible
-      run:  pip3 install ansible==9.2
-
-## Submodule Bits
-# niova-pumicedb submodule init
-    - name: submodule init
-      run: git submodule init && git submodule update
-
-# build backtrace submodule
-    - name: build libbacktrace
-      run: cd modules/libbacktrace/ && ./configure && make && sudo make install
-
-# niova-raft submodule init
-    - name: submodule init (niova-raft)
-      run: cd modules/niova-raft && git submodule init && git submodule update
-
-# niova-core submodule init
-    - name: submodule init (niova-core)
-      run: cd modules/niova-raft/modules/niova-core && git submodule init && git submodule update
-
-# build niova-core
-    - name: build niova-core
-      run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-asan --enable-devel --prefix=/usr/local/niova &&
-        make -j 4 && make -j 4 check && sudo make install
-
-# build niova-raft
-    - name: build niova-raft
-      run: cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-asan --enable-devel --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
-        make -j 4 && make -j 4 check && sudo make install
-## End Submodule Bits
-
-    - name: make
-      run: ./prepare.sh &&
-           ./configure --with-niova=/usr/local/niova --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel &&
-           make clean && make && make install
-      env:
-        LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
+    - uses: ./.github/actions/common-setup
 
     - name: Copy script to run recipes
       run: cp ./scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp ./scripts/rebuild_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-       repository: 00pauln00/holon
-       ref: niova_core_recipes_compatibility
-       path: ./holon
-
-    - name: Copy holon repo
-      run: cp -r ./holon /home/runner/work/niovad/niovad/build_dir/
-
-    - name: Create log directory for storing holon logs
-      run: mkdir  /home/runner/work/niovad/niovad/holon_log
-
-    - name: List build directory
-      run: ls -l /home/runner/work/niovad/niovad/build_dir
+#    - name: Checkout repository
+#      uses: actions/checkout@v4
+#      with:
+#       repository: 00pauln00/holon
+#       ref: niova_core_recipes_compatibility
+#       path: ./holon
 
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
@@ -92,15 +33,8 @@ jobs:
                              'pumicedb'
                              '/home/runner/work/go/go/bin'
 
-    - name: Prepare artifact filename
-      id: prepare_artifact_filename
-      run: |
-        echo ::set-output name=ARTIFACT_NAME::test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}
-      if: failure()
+    - uses: ./.github/actions/teardown-success
+#      if: ${{ !failure() }}
 
-    - name: Archive the test results
-      uses: actions/upload-artifact@v4
-      with:
-         name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
-         path: /home/runner/work/niovad/niovad/holon_log
-      if: failure()
+    - uses: ./.github/actions/teardown-failure
+      if: failure() # run teardown regardless of failure
