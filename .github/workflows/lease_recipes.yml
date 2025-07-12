@@ -26,6 +26,5 @@ jobs:
                              'lease'
                              '/home/runner/work/go/go/bin'
 
-    - name Teardown
-      uses: ./.github/actions/common-teardown
+    - uses: ./.github/actions/common-teardown
       if: always() # run teardown regardless of failure
