@@ -77,7 +77,7 @@ jobs:
 
     - name: make
       run: ./prepare.sh &&
-           ./configure --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel &&
+           ./configure --with-niova=/usr/local/niova --prefix=/home/runner/work/niovad/niovad/build_dir/ --enable-asan --enable-devel &&
            make clean && make && make install
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
