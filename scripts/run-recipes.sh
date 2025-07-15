@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 HOLON_LIBS=${1}
 BIN_PATH=${2}
@@ -26,7 +26,7 @@ do
    if [ $# -eq 7 ]
    then
       GO_PATH=${7}
-      ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_name=$APP_TYPE holon.yml
+      ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE holon.yml
    elif [ $# -eq 6 ]
    then
       NNISD=${6}
