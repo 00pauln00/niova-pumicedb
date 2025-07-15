@@ -391,7 +391,7 @@ pmdb_sm_handler_client_lookup(struct raft_net_client_request_handle *rncr)
     struct pmdb_object pmdb_obj = {0};
 
     struct pmdb_msg *pmdb_reply =
-        RAFT_NET_MAP_RPC(pmdb_msg, rncr->rncr_reply);
+        RAFT_NET_MAP_RPC(pmdb_msg, (struct raft_client_rpc_msg *)rncr->rncr_reply);
 
     int rc = pmdb_object_lookup(&pmdb_req->pmdbrm_user_id, &pmdb_obj,
                                 rncr->rncr_current_term);
@@ -818,7 +818,7 @@ pumicedb_init_cb_args(const struct raft_net_client_user_id *app_id,
                       char *reply_buf, size_t reply_bufsz,
                       enum raft_init_state_type init_state,
                       int *continue_wr, void *pmdb_handler,
-                      void *user_data, void *app_data, size_t app_data_sz,
+                      void *user_data, const void *app_data, size_t app_data_sz,
                       struct pumicedb_cb_cargs *args)
 {
     args->pcb_userid = app_id;
@@ -848,7 +848,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
 
     const struct raft_net_client_user_id *rncui = &pmdb_req->pmdbrm_user_id;
 
-    struct raft_client_rpc_msg *reply = rncr->rncr_reply;
+    struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
     struct pmdb_msg *pmdb_reply = (struct pmdb_msg *)reply->rcrm_data;
     const size_t max_reply_size =
         rncr->rncr_reply_data_max_size -
@@ -862,7 +862,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0,
                           continue_wr, NULL,
-                          pmdb_user_data, NULL, 0
+                          pmdb_user_data, NULL, 0,
                           &write_prep_cb_args);
 
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
@@ -900,7 +900,7 @@ pmdb_read_modify_write_cb(struct raft_net_client_request_handle *rncr)
     ssize_t rc = 0;
     pumicedb_init_cb_args(&pmdb_req->pmdbrm_user_id, pmdb_req->pmdbrm_data,
                           pmdb_req->pmdbrm_data_size,
-                          rncr->rncr_reply;, rncr->rncr_reply_data_max_size, 0,
+                          rncr->rncr_reply, rncr->rncr_reply_data_max_size, 0,
                           NULL, NULL,
                           pmdb_user_data, NULL, 0,
                           &read_modify_write_cb_args);
@@ -1043,7 +1043,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
     }
 
     // Stash the obj metadata into the reply
-    struct pmdb_msg *pmdb_reply = RAFT_NET_MAP_RPC(pmdb_msg, rncr->rncr_reply);
+    struct pmdb_msg *pmdb_reply = RAFT_NET_MAP_RPC(pmdb_msg, (struct raft_client_rpc_msg *) rncr->rncr_reply);
     pmdb_obj_to_reply(&obj, pmdb_reply, rncr->rncr_current_term, rc);
 
     PMDB_OBJ_DEBUG((rncr->rncr_op_error == -EBADE ? LL_NOTIFY : LL_DEBUG),
@@ -1063,7 +1063,7 @@ pmdb_sm_handler_client_read(struct raft_net_client_request_handle *rncr)
     const struct pmdb_msg *pmdb_req =
         (const struct pmdb_msg *)req->rcrm_data;
 
-    struct raft_client_rpc_msg *reply = rncr->rncr_reply;
+    struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
     struct pmdb_msg *pmdb_reply = (struct pmdb_msg *)reply->rcrm_data;
 
     NIOVA_ASSERT(pmdb_req->pmdbrm_data_size <= PMDB_MAX_APP_RPC_PAYLOAD_SIZE);
@@ -1347,11 +1347,11 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
     const size_t max_reply_size =
         rncr->rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
 
-    const void *app_data = rncr->rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg);
-    const size_t app_data_sz = rncr->rncr->rncr_request_or_commit_data_size - sizeof(struct pmdb_msg);
+    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg);
+    const size_t app_data_sz = rncr->rncr_request_or_commit_data_size - sizeof(struct pmdb_msg);
 
     struct pumicedb_cb_cargs apply_args;
-    struct raft_client_rpc_msg *reply = rncr->rncr_reply;
+    struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
 
     if (rncr->rncr_is_leader)
         pmdb_reply = (struct pmdb_msg *)reply->rcrm_data;
@@ -1497,7 +1497,7 @@ pmdb_init_peer_handler(enum raft_init_state_type init_state)
     if (pmdbApi->pmdb_init)
     {
         pumicedb_init_cb_args(NULL, NULL, 0, NULL, 0, init_state, NULL, NULL,
-                              pmdb_user_data,
+                              pmdb_user_data, NULL, 0,
                               &init_leader_cb_args);
         pmdbApi->pmdb_init(&init_leader_cb_args);
     }
