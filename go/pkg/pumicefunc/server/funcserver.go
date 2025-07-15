@@ -67,25 +67,25 @@ func decode(payload []byte) (funclib.FuncReq, error) {
 }
 
 func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    //Keep the writeprep to be a no-op for now
-    cw := (*int)(wrPrepArgs.ContinueWr)
-    *cw = 1
-}
-
-func (fs *FuncServer) ReadModifyWrite(rmwArgs *PumiceDBServer.PmdbCbArgs) int64 {
     r := decode(rmwArgs.Payload)
+    cw := (*int)(wrPrepArgs.ContinueWr)
     if fn, exists := fs.RMWFuncs[r.Name]; exists {
         result, err := fn(r.Args...)
         if err != nil {
-            log.Error("RMW function %s failed: %v", r.Name, err)
+            log.Error("Write prep function %s failed: %v", r.Name, err)
             return -1
         }
         //TODO: Modify the request as per the result
         // For now, we just log the result
-        log.Info("RMW function %s executed successfully with result: %v", r.Name, result)
+        log.Info("Write prep function %s executed successfully with result: %v", r.Name, result)
+        //Continue write if the function executed successfully
+        *cw = 1
         return 0
     }
+    *cw = 0
     return -1
+    
+    
 }
 
 func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {

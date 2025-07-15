@@ -282,10 +282,6 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 	return 0
 }
 
-func (lso *LeaseServerObject) ReadModifyWrite(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-	return 0
-}
-
 func (handler *LeaseServerReqHandler) readLease() int {
 	handler.LeaseServerObj.leaseLock.Lock()
 	defer handler.LeaseServerObj.leaseLock.Unlock()
