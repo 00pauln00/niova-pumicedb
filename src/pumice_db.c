@@ -880,32 +880,6 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     return rc >= 0 ? 0 : -1;
 }
 
-static int
-pmdb_read_modify_write_cb(struct raft_net_client_request_handle *rncr)
-{
-    //TODO: Yet to implement this function
-    if (!pmdbApi->pmdb_read_modify_write)
-    {
-        LOG_MSG(LL_ERROR, "pmdb_read_modify_write is not implemented");
-        return -ENOSYS;
-    }
-
-    struct pumicedb_cb_cargs read_modify_write_cb_args = {0};
-    const struct pmdb_msg *pmdb_req =
-        (const struct pmdb_msg *)rncr->rncr_request_or_commit_data;
-    ssize_t rc = 0;
-    pumicedb_init_cb_args(&pmdb_req->pmdbrm_user_id, pmdb_req->pmdbrm_data,
-                          pmdb_req->pmdbrm_data_size,
-                          rncr->rncr_reply, rncr->rncr_reply_data_max_size, 0,
-                          NULL, NULL,
-                          pmdb_user_data, NULL, 0,
-                          &read_modify_write_cb_args);
-
-    rc = pmdbApi->pmdb_read_modify_write(&read_modify_write_cb_args);
-    return 0;
-    
-}
-
 /**
  * pmdb_sm_handler_client_write - lookup the object and ensure that the
  *    requested write sequence number is consistent with the pmdb-object.
@@ -1027,7 +1001,6 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                 rc = pmdb_write_prep_cb(rncr, &continue_wr);
                 // If write_prep return success and allow to continue raft write.
                 if (!rc && continue_wr) {
-                    pmdb_read_modify_write_cb(rncr);
                     pmdb_prep_raft_entry_write(rncr, &obj);
                 }
             }

@@ -27,7 +27,6 @@ import (
 extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);
-extern ssize_t readModifyWriteCgo(struct pumicedb_cb_cargs *args);
 extern void initCgo(struct pumicedb_cb_cargs *args);
 extern ssize_t retryWriteCgo(struct pumicedb_cb_cargs *args,void *);
 */
@@ -47,13 +46,14 @@ type PmdbCbArgs struct {
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
+	AppData		unsafe.Pointer
+	AppDataSize int64
 }
 
 type PmdbServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
-	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
 	RetryWrite(goCbArgs *PmdbCbArgs) int64
 }
@@ -62,7 +62,6 @@ type LeaseServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
-	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
 }
 
@@ -70,7 +69,6 @@ type FuncServerAPI interface {
 	WritePrep(goCbArgs *PmdbCbArgs) int64
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
-	ReadModifyWrite(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
 	RetryWrite(goCbArgs *PmdbCbArgs) int64
 }
@@ -154,6 +152,8 @@ func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 	goCbArgs.ContinueWr = unsafe.Pointer(cargs.pcb_continue_wr)
 	goCbArgs.PmdbHandler = unsafe.Pointer(cargs.pcb_pmdb_handler)
 	goCbArgs.UserData = unsafe.Pointer(cargs.pcb_user_data)
+	goCbArgs.AppData = unsafe.Pointer(cargs.pcb_app_data)
+	goCbArgs.AppDataSize = CToGoInt64(cargs.pcb_app_data_sz)
 	//Decode Pumice level request
 	request := &PumiceDBCommon.PumiceRequest{}
 	err := Decode(ReqBuf, request, ReqSize)
@@ -192,28 +192,6 @@ func goWritePrep(args *C.struct_pumicedb_cb_cargs) int64 {
 		ret = gcb.FuncAPI.WritePrep(&wrPrepArgs) 
 	} else {
 		return -1
-	}
-	return ret
-}
-
-//export goReadModifyWrite
-func goReadModifyWrite(args *C.struct_pumicedb_cb_cargs) int64 {
-	var rmwArgs PmdbCbArgs
-	reqType := pmdbCbArgsInit(args, &rmwArgs)
-
-	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(rmwArgs.UserData).(*PmdbServerObject)
-
-	var ret int64
-	if reqType == PumiceDBCommon.APP_REQ {
-		//Calling the golang Application's ReadModifyWrite function.
-		ret = gcb.PmdbAPI.ReadModifyWrite(&rmwArgs)
-	} else if reqType == PumiceDBCommon.LEASE_REQ {
-		//Calling leaseAPP ReadModifyWrite
-		ret = gcb.LeaseAPI.ReadModifyWrite(&rmwArgs)
-	} else if reqType == PumiceDBCommon.FUNC_REQ {
-		//Calling the golang Function's ReadModifyWrite function.
-		ret = gcb.FuncAPI.ReadModifyWrite(&rmwArgs)
 	}
 	return ret
 }
@@ -326,7 +304,6 @@ func PmdbStartServer(pso *PmdbServerObject) error {
 	cCallbacks.pmdb_apply = C.pmdb_apply_sm_handler_t(C.applyCgo)
 	cCallbacks.pmdb_read = C.pmdb_read_sm_handler_t(C.readCgo)
 	cCallbacks.pmdb_write_prep = C.pmdb_write_prep_sm_handler_t(C.writePrepCgo)
-	cCallbacks.pmdb_read_modify_write = C.pmdb_read_modify_write_sm_handler_t(C.readModifyWriteCgo)
 	cCallbacks.pmdb_init = C.pmdb_init_sm_handler_t(C.initCgo)
 	cCallbacks.pmdb_retry_wr = C.pmdb_retry_wr_sm_handler_t(C.retryWriteCgo)
 
