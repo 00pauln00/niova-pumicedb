@@ -811,7 +811,7 @@ pumicedb_init_cb_args(const struct raft_net_client_user_id *app_id,
                       char *reply_buf, size_t reply_bufsz,
                       enum raft_init_state_type init_state,
                       int *continue_wr, void *pmdb_handler,
-                      void *user_data,
+                      void *user_data, void *app_data, size_t app_data_sz,
                       struct pumicedb_cb_cargs *args)
 {
     args->pcb_userid = app_id;
@@ -823,6 +823,8 @@ pumicedb_init_cb_args(const struct raft_net_client_user_id *app_id,
     args->pcb_continue_wr = continue_wr;
     args->pcb_pmdb_handler = pmdb_handler;
     args->pcb_user_data = user_data;
+    args->pcb_app_data = app_data;
+    args->pcb_app_data_sz = app_data_sz;
 }
 
 static int
@@ -853,7 +855,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0,
                           continue_wr, NULL,
-                          pmdb_user_data,
+                          pmdb_user_data, NULL, 0
                           &write_prep_cb_args);
 
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
@@ -887,7 +889,19 @@ pmdb_read_modify_write_cb(struct raft_net_client_request_handle *rncr)
         LOG_MSG(LL_ERROR, "pmdb_read_modify_write is not implemented");
         return -ENOSYS;
     }
-    //pmdbApi->pmdb_read_modify_write(&read_modify_write_cb_args);
+
+    struct pumicedb_cb_cargs read_modify_write_cb_args = {0};
+    const struct pmdb_msg *pmdb_req =
+        (const struct pmdb_msg *)rncr->rncr_request_or_commit_data;
+    ssize_t rc = 0;
+    pumicedb_init_cb_args(&pmdb_req->pmdbrm_user_id, pmdb_req->pmdbrm_data,
+                          pmdb_req->pmdbrm_data_size,
+                          rncr->rncr_reply;, rncr->rncr_reply_data_max_size, 0,
+                          NULL, NULL,
+                          pmdb_user_data, NULL, 0,
+                          &read_modify_write_cb_args);
+
+    rc = pmdbApi->pmdb_read_modify_write(&read_modify_write_cb_args);
     return 0;
     
 }
@@ -970,7 +984,8 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
             pumicedb_init_cb_args(rncui, pmdb_req->pmdbrm_data,
                                 pmdb_req->pmdbrm_data_size,
                                 NULL, 0, 0, NULL, NULL,
-                                pmdb_user_data, &retry_cb_args);
+                                pmdb_user_data, NULL, 0, 
+                                &retry_cb_args);
             pmdbApi->pmdb_retry_wr(&retry_cb_args);
         }
         
@@ -1072,7 +1087,7 @@ pmdb_sm_handler_client_read(struct raft_net_client_request_handle *rncr)
                               pmdb_req->pmdbrm_data_size,
                               pmdb_reply->pmdbrm_data, max_reply_size, 0,
                               NULL, NULL,
-                              pmdb_user_data,
+                              pmdb_user_data, NULL, 0,
                               &read_cb_args);
 
         // FIXME Get the current term value here.
@@ -1325,6 +1340,10 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
     struct pmdb_msg *pmdb_reply = NULL;
     const size_t max_reply_size =
         rncr->rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
+
+    const void *app_data = rncr->rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg);
+    const size_t app_data_sz = rncr->rncr->rncr_request_or_commit_data_size - sizeof(struct pmdb_msg);
+
     struct pumicedb_cb_cargs apply_args;
     struct raft_client_rpc_msg *reply = rncr->rncr_reply;
 
@@ -1335,7 +1354,7 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
                           pmdb_req->pmdbrm_data_size, pmdb_reply ?
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0, NULL, (void *)&pah,
-                          pmdb_user_data, &apply_args);
+                          pmdb_user_data, app_data, app_data_sz, &apply_args);
 
 
     // Call into the application so it may emplace its own KVs.

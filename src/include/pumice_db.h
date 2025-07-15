@@ -35,6 +35,8 @@ struct pumicedb_cb_cargs
     int                                  *pcb_continue_wr;
     void                                 *pcb_pmdb_handler;
     void                                 *pcb_user_data;
+    void                                 *pcb_app_data;
+    size_t                                pcb_app_data_sz;
 };
 
 /**
