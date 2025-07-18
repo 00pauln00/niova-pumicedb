@@ -855,7 +855,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0,
                           continue_wr, NULL,
-                          pmdb_user_data, NULL, 0,
+                          pmdb_user_data, rncr->rncr_reply, rncr->rncr_reply_data_max_size,
                           &write_prep_cb_args);
 
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
@@ -1314,8 +1314,10 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
     const size_t max_reply_size =
         rncr->rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
 
-    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg);
-    const size_t app_data_sz = rncr->rncr_request_or_commit_data_size - sizeof(struct pmdb_msg);
+    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg) + 
+                           pmdb_req->pmdbrm_data_size;
+    const size_t app_data_sz = rncr->rncr_request_or_commit_data_size - 
+                        (sizeof(struct pmdb_msg) + pmdb_req->pmdbrm_data_size);
 
     struct pumicedb_cb_cargs apply_args;
     struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
@@ -1381,9 +1383,11 @@ pmdb_sm_handler(struct raft_net_client_request_handle *rncr)
     if (rncr->rncr_request) // otherwise, this is an apply operation
         DBG_RAFT_CLIENT_RPC(LL_DEBUG, rncr->rncr_request, "");
 
-    if (pmdb_net_calc_rpc_msg_size(pmdb_req) !=
-        rncr->rncr_request_or_commit_data_size)
-        return -EMSGSIZE;
+    /* Message size check is avoided as we use piggy backing
+    of the application data */
+    // if (pmdb_net_calc_rpc_msg_size(pmdb_req) !=
+    //     rncr->rncr_request_or_commit_data_size)
+    //     return -EMSGSIZE;
 
     /* Mapping of the reply buffer should not fail but it's ok if a reply
      * is not issued.

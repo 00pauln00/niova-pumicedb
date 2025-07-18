@@ -5,13 +5,13 @@ import (
     PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
     "encoding/gob"
 	log "github.com/sirupsen/logrus"
-    funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common
+    "bytes"
+    funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common"
 )
 
 // FuncServer is a struct that represents a function server.
 type FuncServer struct {
     WritePrepFuncs map[string]func(args ...interface{}) (interface{}, error)
-    RMWFuncs map[string]func(args ...interface{}) (interface{}, error)
     ApplyFuncs map[string]func(args ...interface{}) (interface{}, error)
     ReadFuncs map[string]func(args ...interface{}) (interface{}, error)
 }
@@ -20,7 +20,6 @@ type FuncServer struct {
 func NewFuncServer() *FuncServer {
     return &FuncServer{
         WritePrepFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
-        RMWFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
         ApplyFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
         ReadFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
     }
@@ -35,13 +34,6 @@ func (fs *FuncServer) RegisterWritePrepFunc(name string, fn func(args ...interfa
     fs.WritePrepFuncs[name] = fn
 }
 
-// RegisterRMWFunc registers a read-modify-write function with the server.
-func (fs *FuncServer) RegisterRMWFunc(name string, fn func(args ...interface{}) (interface{}, error)) {
-    if _, exists := fs.RMWFuncs[name]; exists {
-        panic(fmt.Sprintf("RMW function %s already registered", name))
-    }
-    fs.RMWFuncs[name] = fn
-}
 
 // RegisterApplyFunc registers an apply function with the server.
 func (fs *FuncServer) RegisterApplyFunc(name string, fn func(args ...interface{}) (interface{}, error)) {
@@ -67,21 +59,32 @@ func decode(payload []byte) (funclib.FuncReq, error) {
 }
 
 func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    r := decode(rmwArgs.Payload)
+    r, err := decode(wrPrepArgs.Payload)
+    if err != nil {
+        log.Error("Failed to decode write prep request: ", err)
+        return -1
+    }
+    
     cw := (*int)(wrPrepArgs.ContinueWr)
-    if fn, exists := fs.RMWFuncs[r.Name]; exists {
+    if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
         result, err := fn(r.Args...)
         if err != nil {
             log.Error("Write prep function %s failed: %v", r.Name, err)
             return -1
         }
-        //TODO: Modify the request as per the result
-        // For now, we just log the result
         log.Info("Write prep function %s executed successfully with result: %v", r.Name, result)
+        size, err := PumiceDBServer.PmdbCopyDataToBuffer(result, wrPrepArgs.AppData)
+        if err != nil {
+            log.Error("Failed to copy data to buffer: ", err)
+            goto error
+        }
         //Continue write if the function executed successfully
         *cw = 1
-        return 0
+        log.Info("Data copied to buffer successfully, size: %d", size)
+        return size
     }
+
+error:
     *cw = 0
     return -1
     
@@ -89,9 +92,14 @@ func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
 }
 
 func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    r := decode(applyArgs.Payload)
+    log.Info("Apply request received in FuncServer")
+    r, err := decode(applyArgs.Payload)
+    if err != nil {
+        log.Error("Failed to decode apply request: ", err)
+        return -1
+    }
     if fn, exists := fs.ApplyFuncs[r.Name]; exists {
-        result, err := fn(r.Args...)
+        result, err := fn(applyArgs.AppData, applyArgs.AppDataSize)
         if err != nil {
             log.Error("Apply function %s failed: %v", r.Name, err)
             return -1
@@ -105,7 +113,11 @@ func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
     // Implement the read logic here
-    r := decode(readArgs.Payload)
+    r, err := decode(readArgs.Payload)
+    if err != nil {
+        log.Error("Failed to decode read request: ", err)
+        return -1
+    }
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
         result, err := fn(r.Args...)
         if err != nil {
@@ -119,3 +131,7 @@ func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
     log.Error("Read function %s not found", r.Name)
     return -1
 }   
+
+func (nso *FuncServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
+	return
+}
