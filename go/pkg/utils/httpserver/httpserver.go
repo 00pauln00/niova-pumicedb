@@ -18,6 +18,7 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
+	FuncHandler      	func(name string) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -166,6 +167,11 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 	}
 }
 
+func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
+	fmt.Fprintf(writer, "Functionality not implemented yet\n")
+	handler.FuncHandler(reader.URL.Query().Get("name"))
+}
+
 //HTTP server handler called when request is received
 func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *http.Request) {
 	if reader.URL.Path == "/config" {
@@ -174,6 +180,8 @@ func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *
 		handler.statHandler(writer, reader)
 	} else if reader.URL.Path == "/check" {
 		writer.Write([]byte("HTTP server in operation"))
+	} else if reader.URL.Path == "/func" {
+		handler.HTTPFuncHandler(writer, reader)
 	} else {
 		handler.kvRequestHandler(writer, reader)
 	}
