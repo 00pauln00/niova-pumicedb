@@ -70,7 +70,6 @@ type FuncServerAPI interface {
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
-	RetryWrite(goCbArgs *PmdbCbArgs) int64
 }
 
 type PmdbServerObject struct {

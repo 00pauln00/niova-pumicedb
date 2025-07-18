@@ -123,10 +123,6 @@ func (lso *leaseServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return 0
 }
 
-func (lso *leaseServer) ReadModifyWrite(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-	return 0
-}
-
 func (lso *leaseServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return 0
 }

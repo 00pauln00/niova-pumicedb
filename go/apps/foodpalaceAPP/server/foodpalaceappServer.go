@@ -65,11 +65,6 @@ func (fpso *FoodpalaceServer) WritePrep(wrPreArgs *PumiceDBServer.PmdbCbArgs) in
 	return 0
 }
 
-//Method for ReadModifyWrite callback.
-func (fpso *FoodpalaceServer) ReadModifyWrite(wrPreArgs *PumiceDBServer.PmdbCbArgs) int64 {
-	return 0
-}
-
 //Method for Apply callback.
 func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 

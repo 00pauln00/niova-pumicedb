@@ -134,10 +134,6 @@ func (cso *CovidServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return 0
 }
 
-func (cso *CovidServer) ReadModifyWrite(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-	return 0
-}
-
 func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	log.Info("Covid19_Data app server: Apply request received")
