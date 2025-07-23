@@ -681,6 +681,19 @@ func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
 	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
+func PmdbCopyBytesToBuffer(ed []byte,
+	buffer unsafe.Pointer) (int64, error) {
+	if ed == nil || len(ed) == 0 {
+		return 0, errors.New("No data to copy")
+	}
+	if buffer == nil {
+		return 0, errors.New("Buffer is nil")
+	}
+	// Copy the byte slice into the buffer
+	C.memcpy(buffer, unsafe.Pointer(&ed[0]), C.size_t(len(ed)))
+	return int64(len(ed)), nil
+}
+
 // Copy data from the user's application into the pmdb reply buffer
 func PmdbCopyDataToBuffer(ed interface{}, buffer unsafe.Pointer) (int64, error) {
 	var key_len int64
