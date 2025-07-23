@@ -880,7 +880,11 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
          pmdb_reply->pmdbrm_data_size = rc;
          reply->rcrm_data_size += (uint32_t)rc;
     }
-
+    else
+    {
+        rncr->rncr_reply_data_size = rc;
+    }
+    
     return rc >= 0 ? 0 : -1;
 }
 
@@ -1005,6 +1009,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                 // If write_prep return success and allow to continue raft write.
                 if (!rc && continue_wr) {
                     pmdb_prep_raft_entry_write(rncr, &obj);
+                    return 0;
                 }
             }
         }
