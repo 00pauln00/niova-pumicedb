@@ -18,7 +18,7 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
-	FuncHandler      	func(name string) error
+	FuncHandler      	func(string, string, []byte, *[]byte) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -169,7 +169,36 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 
 func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
 	fmt.Fprintf(writer, "Functionality not implemented yet\n")
-	handler.FuncHandler(reader.URL.Query().Get("name"))
+	body, err := ioutil.ReadAll(reader.Body)
+	if err != nil {
+		log.Error("Error reading request body: ", err)
+		http.Error(writer, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	defer reader.Body.Close()
+
+	name := reader.URL.Query().Get("name")
+	rncui := reader.URL.Query().Get("rncui")
+	var response []byte
+	err = handler.FuncHandler(name, rncui, body, &response)
+	if err != nil {
+		log.Error("Error in FuncHandler: ", err)
+		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if response != nil {
+		// Write the response back to the client
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_, err = writer.Write(response)
+		if err != nil {
+			log.Error("Error writing response: ", err)
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(writer, "No response from function", http.StatusNotFound)
+	}
 }
 
 //HTTP server handler called when request is received
