@@ -7,6 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
     "bytes"
     funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common"
+
+    "C"
 )
 
 // FuncServer is a struct that represents a function server.
@@ -67,20 +69,21 @@ func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
     
     cw := (*int)(wrPrepArgs.ContinueWr)
     if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
-        result, err := fn(r.Args...)
+        result, err := fn(r.Args)
         if err != nil {
-            log.Error("Write prep function %s failed: %v", r.Name, err)
+            log.Errorf("Write prep function %s failed: %v", r.Name, err)
             return -1
         }
         log.Info("Write prep function %s executed successfully with result: %v", r.Name, result)
-        size, err := PumiceDBServer.PmdbCopyDataToBuffer(result, wrPrepArgs.AppData)
+        size, err := PumiceDBServer.PmdbCopyBytesToBuffer(result.([]byte), wrPrepArgs.AppData)
         if err != nil {
             log.Error("Failed to copy data to buffer: ", err)
             goto error
         }
         //Continue write if the function executed successfully
         *cw = 1
-        log.Info("Data copied to buffer successfully, size: %d", size)
+        log.Info("Data copied to buffer successfully, size: ", size)
+        
         return size
     }
 
@@ -93,22 +96,38 @@ error:
 
 func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
     log.Info("Apply request received in FuncServer")
+
+    //Get the function to be executed
     r, err := decode(applyArgs.Payload)
     if err != nil {
         log.Error("Failed to decode apply request: ", err)
         return -1
     }
+
+
     if fn, exists := fs.ApplyFuncs[r.Name]; exists {
-        result, err := fn(applyArgs.AppData, applyArgs.AppDataSize)
+        _, err = fn(applyArgs)
         if err != nil {
             log.Error("Apply function %s failed: %v", r.Name, err)
             return -1
         }
-        //TODO: Fill the response using the result
-        log.Info("Apply function %s executed successfully with result: %v", r.Name, result)
+        log.Info("Apply function %s executed successfully with result: %v", r.Name)
         return 0
     }
-    return -1
+    
+    fn := fs.ApplyFuncs["*"]
+    if fn == nil {
+        log.Error("Apply function not found")
+        return -1
+    }
+
+    ret, err := fn(applyArgs)
+    if err != nil {
+        log.Error("Default apply function failed: %v", err)
+        return -1
+    }
+
+    return ret.(int64)
 }
 
 func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
@@ -119,7 +138,7 @@ func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
         return -1
     }
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
-        result, err := fn(r.Args...)
+        result, err := fn(r.Args)
         if err != nil {
             log.Error("Read function %s failed: %v", r.Name, err)
             return -1
