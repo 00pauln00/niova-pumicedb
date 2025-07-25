@@ -243,8 +243,50 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return replySize
 }
 
-func (cso *CovidServer) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    fmt.Println("RetryWrite callback for duplicate rncui")
-	log.Info("RetryWrite callback for duplicate rncui")
-    return 0
+func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+	fmt.Println("FillReply callback for duplicate rncui")
+
+	// Decode the request to get the key
+	reqStruct := &CovidAppLib.CovidLocale{}
+	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, reqStruct)
+	if decodeErr != nil {
+		log.Error("Failed to decode the write request in FillReply")
+		return -1
+	}
+
+	key := reqStruct.Location
+	keyLen := len(key)
+
+	// Read the value from the DB
+	readRsult, readErr := cso.pso.ReadKV(applyArgs.UserID, key, int64(keyLen), colmfamily)
+	if readErr != nil {
+		log.Error("Failed to read value from DB in FillReply: ", readErr)
+		return -1
+	}
+
+	var splitValues []string
+
+	if readErr == nil {
+		//split space separated values.
+		splitValues = strings.Split(string(readRsult), " ")
+	}
+
+	//Convert TotalVaccinations and PeopleVaccinated into int64 type
+	tvInt, _ := strconv.ParseInt(splitValues[1], 10, 64)
+	pvInt, _ := strconv.ParseInt(splitValues[2], 10, 64)
+
+	resultCovid := CovidAppLib.CovidLocale{
+		Location:          reqStruct.Location,
+		IsoCode:           splitValues[0],
+		TotalVaccinations: tvInt,
+		PeopleVaccinated:  pvInt,
+	}
+
+	if applyArgs.ReplyBuf == nil {
+		return -1
+	}
+
+	replySize, _ := cso.pso.CopyDataToBuffer(resultCovid, applyArgs.ReplyBuf)
+
+	return replySize
 }

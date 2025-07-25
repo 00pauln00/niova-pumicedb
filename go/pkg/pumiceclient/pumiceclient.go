@@ -98,6 +98,9 @@ func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) (unsafe.Pointer, error) {
 
 	var rBytes bytes.Buffer
 	var err error
+	var wr_err error
+	var replyB unsafe.Pointer
+	var replySize int64
 
 	enc := gob.NewEncoder(&rBytes)
 	err = enc.Encode(reqArgs.ReqED)
@@ -114,9 +117,26 @@ func (obj *PmdbClientObj) Write(reqArgs *PmdbReqArgs) (unsafe.Pointer, error) {
 	ekey := (*C.char)(eData)
 	getResC := (C.int)(reqArgs.GetResponse)
 
-	//Perform the write
-	return obj.writeKV(reqArgs.Rncui, ekey, reqLen, getResC,
+	replyB, wr_err = obj.writeKV(reqArgs.Rncui, ekey, reqLen, getResC,
 		reqArgs.ReplySize)
+
+	if wr_err != nil {
+		return replyB,wr_err
+	}
+	
+	replySize = *reqArgs.ReplySize
+
+	if replyB != nil {
+		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
+		buffer := bytes.NewBuffer(bytes_data)
+		*reqArgs.Response = buffer.Bytes()
+	} 
+
+	// Free the buffer allocated by the C library
+	C.free(replyB)
+
+	//Perform the write
+	return nil, nil
 }
 
 //WriteEncoded

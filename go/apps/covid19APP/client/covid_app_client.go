@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"github.com/00pauln00/niova-pumicedb/go/apps/covid19APP/lib"
 	"encoding/csv"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -237,6 +239,7 @@ type opInfo struct {
 */
 type wrOne struct {
 	op opInfo
+	Resp *CovidAppLib.CovidLocale 
 }
 
 /*
@@ -394,6 +397,13 @@ func (cvd *covidVaxData) fillWriteOne(wrOneObj *wrOne) {
 		"Status": StatStr,
 	}
 
+	if wrOneObj.Resp != nil {
+		writeMp["Location"] = wrOneObj.Resp.Location
+		writeMp["IsoCode"] = wrOneObj.Resp.IsoCode
+		writeMp["TotalVaccinations"] = strconv.FormatInt(wrOneObj.Resp.TotalVaccinations, 10)
+		writeMp["PeopleVaccinated"] = strconv.FormatInt(wrOneObj.Resp.PeopleVaccinated, 10)
+	}
+
 	//fill write request data into a map.
 	fillDataToMap(writeMp, wrOneObj.op.rncui)
 
@@ -514,13 +524,16 @@ func (wrObj *wrOne) exec() error {
 	var errMsg error
 	var wrData = &covidVaxData{}
 	var replySize int64
+	response := make([]byte, 0)
 
-	reqArgs := &PumiceDBClient.PmdbReqArgs {
-		Rncui: wrObj.op.rncui,
-		ReqED: wrObj.op.covidData,
-		GetResponse: 0,
-		ReplySize: &replySize,
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       wrObj.op.rncui,
+		ReqED:       wrObj.op.covidData,
+		GetResponse: 1,
+		ReplySize:   &replySize,
+		Response:    &response,
 	}
+
 	//Perform write Operation.
 	_, err := wrObj.op.cliObj.Write(reqArgs)
 
@@ -532,6 +545,19 @@ func (wrObj *wrOne) exec() error {
 		log.Info("Pmdb Write successful!")
 		wrData.Status = 0
 		errMsg = nil
+	}
+
+	if reqArgs.Response != nil && len(*reqArgs.Response) > 0 {
+		var decoded CovidAppLib.CovidLocale
+		buffer := bytes.NewBuffer(*reqArgs.Response)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&decoded)
+		if err != nil {
+			log.Info("Failed to decode response buffer: ", err)
+		} else {
+			log.Info("Decoded response struct: ", decoded)
+			wrObj.Resp = &decoded 
+		}
 	}
 
 	wrData.fillWriteOne(wrObj)
