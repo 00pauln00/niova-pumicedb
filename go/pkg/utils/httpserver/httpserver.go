@@ -18,7 +18,8 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
-	FuncHandler      	func(string, string, []byte, *[]byte) error
+	ReadFuncHandler	    func(string, []byte, *[]byte) error
+	WriteFuncHandler    func(string, string, []byte, *[]byte) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -180,12 +181,19 @@ func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, re
 	name := reader.URL.Query().Get("name")
 	rncui := reader.URL.Query().Get("rncui")
 	var response []byte
-	err = handler.FuncHandler(name, rncui, body, &response)
+	
+	switch reader.Method {
+	case "GET":
+		err = handler.ReadFuncHandler(name, body, &response)
+	case "PUT":
+		err = handler.WriteFuncHandler(name, rncui, body, &response)
+	}
 	if err != nil {
 		log.Error("Error in FuncHandler: ", err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
 	if response != nil {
 		// Write the response back to the client
 		writer.Header().Set("Content-Type", "application/json")

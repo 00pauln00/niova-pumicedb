@@ -674,6 +674,12 @@ func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
 	return pmdbFetchAllKV(key, key_len, bufSize, gocolfamily)
 }
 
+func RangeReadKV(app_id unsafe.Pointer, key string,
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (map[string][]byte, string, uint64, bool, error) {
+
+	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
+}
+
 // Public method for range read KV
 func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
 	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (map[string][]byte, string, uint64, bool, error) {

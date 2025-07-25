@@ -138,13 +138,13 @@ func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
         return -1
     }
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
-        result, err := fn(r.Args)
+        result, err := fn(readArgs, r.Args)
         if err != nil {
             log.Error("Read function %s failed: %v", r.Name, err)
             return -1
         }
         //TODO: Fill the response using the result
-        log.Info("Read function %s executed successfully with result: %v", r.Name, result)
+        log.Infof("Read function %s executed successfully with result: %v", r.Name, result)
         return 0
     }
     log.Error("Read function %s not found", r.Name)
