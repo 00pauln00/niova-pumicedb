@@ -224,8 +224,8 @@ func main() {
 }
 
 
-func (cso *FoodpalaceServer) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    fmt.Println("RetryWrite callback for duplicate rncui")
-	log.Info("RetryWrite callback for duplicate rncui")
+func (cso *FoodpalaceServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+    fmt.Println("FillReply callback for duplicate rncui")
+	log.Info("FillReply callback for duplicate rncui")
     return 0
 }

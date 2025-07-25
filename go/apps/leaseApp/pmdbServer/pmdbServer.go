@@ -139,8 +139,7 @@ func (lso *leaseServer) PrepPeer(prepPeer *PumiceDBServer.PmdbCbArgs) {
 	return
 }
 
-func (cso *leaseServer) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64{
-    // fmt.Println("RetryWrite callback for duplicate rncui")
-	log.Info("RetryWrite callback for duplicate rncui")
+func (cso *leaseServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64{
+	log.Info("FillReply callback for duplicate rncui")
 	return 0
 }

@@ -699,6 +699,6 @@ func (lso *LeaseServerObject) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 	}
 }
 
-func (lso *LeaseServerObject) RetryWrite(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+func (lso *LeaseServerObject) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return 0
 }

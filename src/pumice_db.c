@@ -884,7 +884,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     {
         rncr->rncr_reply_data_size = rc;
     }
-    
+
     return rc >= 0 ? 0 : -1;
 }
 
@@ -952,24 +952,50 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
      * of ID_ANY_64bit means the object has previously attempted a write but
      * that write did not yet (or ever) commit.
      */
-    if (pmdb_req->pmdbrm_write_seqno <= obj.pmdb_obj_commit_seqno &&
+    if (pmdb_req->pmdbrm_write_seqno < obj.pmdb_obj_commit_seqno &&
         obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
     {
         raft_client_net_request_handle_error_set(rncr, -EALREADY, 0, 0);
-        // pmdbApi->pmdb_retry_wr callback
-        SIMPLE_LOG_MSG(LL_WARN, "pmdbApi->pmdb_retry_wr callback");
-        if (pmdbApi->pmdb_retry_wr) {
-            SIMPLE_LOG_MSG(LL_WARN, "pmdbApi->pmdb_retry_wr callback inside IF");
-            struct pumicedb_cb_cargs retry_cb_args;
+        SIMPLE_LOG_MSG(LL_WARN, "less rncui");
+    }
+    else if (pmdb_req->pmdbrm_write_seqno == obj.pmdb_obj_commit_seqno &&
+        obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
+    {
+        // pmdbApi->pmdb_fill_reply callback
+        if (pmdbApi->pmdb_fill_reply) {
+            struct pumicedb_cb_cargs reply_cb_args;
+
+            struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
+            struct pmdb_msg *pmdb_reply = (struct pmdb_msg *)reply->rcrm_data;
+            const size_t max_reply_size =
+                rncr->rncr_reply_data_max_size -
+                PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
+            int continue_wr = 1;
 
             pumicedb_init_cb_args(rncui, pmdb_req->pmdbrm_data,
-                                pmdb_req->pmdbrm_data_size,
-                                NULL, 0, 0, NULL, NULL,
-                                pmdb_user_data, NULL, 0,
-                                &retry_cb_args);
-            pmdbApi->pmdb_retry_wr(&retry_cb_args);
-        }
+                          pmdb_req->pmdbrm_data_size,
+                          pmdb_reply ?
+                          pmdb_reply->pmdbrm_data : NULL,
+                          max_reply_size, 0, &continue_wr, NULL,
+                          pmdb_user_data, rncr->rncr_reply, rncr->rncr_reply_data_max_size,
+                          &reply_cb_args);
 
+            rc = pmdbApi->pmdb_fill_reply(&reply_cb_args);
+
+            if (rc < 0)
+            {
+                raft_client_net_request_handle_error_set(rncr,
+                                                    -EPERM,
+                                                    0, -EPERM);
+                rc = -EPERM;
+            }
+            else if (pmdb_reply && rc > 0) {
+                pmdb_reply->pmdbrm_data_size = (uint32_t)rc;
+                reply->rcrm_data_size += (uint32_t)rc;
+            }
+
+            rc  = rc >= 0 ? 0 : -1;
+        }
     }
     else if (pmdb_req->pmdbrm_write_seqno == (obj.pmdb_obj_commit_seqno + 1))
     {
@@ -1325,9 +1351,9 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
     const size_t max_reply_size =
         rncr->rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
 
-    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg) + 
+    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg) +
                            pmdb_req->pmdbrm_data_size;
-    const size_t app_data_sz = rncr->rncr_request_or_commit_data_size - 
+    const size_t app_data_sz = rncr->rncr_request_or_commit_data_size -
                         (sizeof(struct pmdb_msg) + pmdb_req->pmdbrm_data_size);
 
     struct pumicedb_cb_cargs apply_args;

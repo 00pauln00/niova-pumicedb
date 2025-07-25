@@ -5,15 +5,16 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	gopointer "github.com/mattn/go-pointer"
-	uuid "github.com/satori/go.uuid"
 	"io"
 	"math"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"reflect"
 	"strconv"
 	"strings"
 	"unsafe"
+
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	gopointer "github.com/mattn/go-pointer"
+	uuid "github.com/satori/go.uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -28,7 +29,7 @@ extern ssize_t writePrepCgo(struct pumicedb_cb_cargs *args, int *);
 extern ssize_t applyCgo(struct pumicedb_cb_cargs *args, void *);
 extern ssize_t readCgo(struct pumicedb_cb_cargs *args);
 extern void initCgo(struct pumicedb_cb_cargs *args);
-extern ssize_t retryWriteCgo(struct pumicedb_cb_cargs *args,void *);
+extern ssize_t fillReplyCgo(struct pumicedb_cb_cargs *args,void *);
 */
 import "C"
 
@@ -46,7 +47,7 @@ type PmdbCbArgs struct {
 	ContinueWr  unsafe.Pointer
 	PmdbHandler unsafe.Pointer
 	UserData    unsafe.Pointer
-	AppData		unsafe.Pointer
+	AppData     unsafe.Pointer
 	AppDataSize int64
 }
 
@@ -55,7 +56,7 @@ type PmdbServerAPI interface {
 	Apply(goCbArgs *PmdbCbArgs) int64
 	Read(goCbArgs *PmdbCbArgs) int64
 	Init(goCbArgs *PmdbCbArgs)
-	RetryWrite(goCbArgs *PmdbCbArgs) int64
+	FillReply(goCbArgs *PmdbCbArgs) int64
 }
 
 type LeaseServerAPI interface {
@@ -75,7 +76,7 @@ type FuncServerAPI interface {
 type PmdbServerObject struct {
 	PmdbAPI        PmdbServerAPI
 	LeaseAPI       LeaseServerAPI
-	FuncAPI		 FuncServerAPI
+	FuncAPI        FuncServerAPI
 	RaftUuid       string
 	PeerUuid       string
 	SyncWrites     bool
@@ -188,7 +189,7 @@ func goWritePrep(args *C.struct_pumicedb_cb_cargs) int64 {
 		ret = gcb.LeaseAPI.WritePrep(&wrPrepArgs)
 	} else if reqType == PumiceDBCommon.FUNC_REQ {
 		//Calling the golang Function's WritePrep function.
-		ret = gcb.FuncAPI.WritePrep(&wrPrepArgs) 
+		ret = gcb.FuncAPI.WritePrep(&wrPrepArgs)
 	} else {
 		return -1
 	}
@@ -257,17 +258,17 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 	}
 }
 
-//export goRetryWrite
-func goRetryWrite(args *C.struct_pumicedb_cb_cargs) int64 {
-    var retryArgs PmdbCbArgs
-    reqType := pmdbCbArgsInit(args, &retryArgs)
-    gcb := gopointer.Restore(retryArgs.UserData).(*PmdbServerObject)
+//export goFillReply
+func goFillReply(args *C.struct_pumicedb_cb_cargs) int64 {
+	var replyArgs PmdbCbArgs
+	reqType := pmdbCbArgsInit(args, &replyArgs)
+	gcb := gopointer.Restore(replyArgs.UserData).(*PmdbServerObject)
 
-    var ret int64
-    if reqType == PumiceDBCommon.APP_REQ {
-        ret = gcb.PmdbAPI.RetryWrite(&retryArgs)
-    }
-    return ret
+	var ret int64
+	if reqType == PumiceDBCommon.APP_REQ {
+		ret = gcb.PmdbAPI.FillReply(&replyArgs)
+	}
+	return ret
 }
 
 /**
@@ -304,7 +305,7 @@ func PmdbStartServer(pso *PmdbServerObject) error {
 	cCallbacks.pmdb_read = C.pmdb_read_sm_handler_t(C.readCgo)
 	cCallbacks.pmdb_write_prep = C.pmdb_write_prep_sm_handler_t(C.writePrepCgo)
 	cCallbacks.pmdb_init = C.pmdb_init_sm_handler_t(C.initCgo)
-	cCallbacks.pmdb_retry_wr = C.pmdb_retry_wr_sm_handler_t(C.retryWriteCgo)
+	cCallbacks.pmdb_fill_reply = C.pmdb_fill_reply_sm_handler_t(C.fillReplyCgo)
 
 	/*
 	 * Store the column family name into char * array.
@@ -348,7 +349,7 @@ func (pso *PmdbServerObject) Run() error {
 }
 
 // Export the common decode method via the server object
-//TODO: Remove it from PmdbServerObject
+// TODO: Remove it from PmdbServerObject
 func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
 	len int64) error {
 	return PumiceDBCommon.Decode(input, output, len)
@@ -824,6 +825,6 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 	//Enqueue the direct request
 	ret := C.raft_server_enq_direct_raft_req_from_leader((*C.char)(buf), C.int64_t(totalSize))
 	C.free(buf)
-	
+
 	return int(ret)
 }
