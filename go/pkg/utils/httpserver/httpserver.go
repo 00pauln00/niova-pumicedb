@@ -169,7 +169,6 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 }
 
 func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
-	fmt.Fprintf(writer, "Functionality not implemented yet\n")
 	body, err := ioutil.ReadAll(reader.Body)
 	if err != nil {
 		log.Error("Error reading request body: ", err)
