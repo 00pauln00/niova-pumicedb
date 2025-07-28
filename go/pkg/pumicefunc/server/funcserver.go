@@ -74,7 +74,7 @@ func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
             log.Errorf("Write prep function %s failed: %v", r.Name, err)
             return -1
         }
-        log.Info("Write prep function %s executed successfully with result: %v", r.Name, result)
+        log.Infof("Write prep function %s executed successfully with result: %v", r.Name, result)
         size, err := PumiceDBServer.PmdbCopyBytesToBuffer(result.([]byte), wrPrepArgs.AppData)
         if err != nil {
             log.Error("Failed to copy data to buffer: ", err)
@@ -140,14 +140,17 @@ func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
         result, err := fn(readArgs, r.Args)
         if err != nil {
-            log.Error("Read function %s failed: %v", r.Name, err)
+            log.Errorf("Read function %s failed: %v", r.Name, err)
             return -1
         }
-        //TODO: Fill the response using the result
-        log.Infof("Read function %s executed successfully with result: %v", r.Name, result)
-        return 0
+
+        if result != nil {
+            return result.(int64)
+        } else {
+            return int64(0)
+        }
     }
-    log.Error("Read function %s not found", r.Name)
+    log.Errorf("Read function %s not found", r.Name)
     return -1
 }   
 
