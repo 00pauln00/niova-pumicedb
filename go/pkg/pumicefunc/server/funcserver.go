@@ -60,14 +60,14 @@ func decode(payload []byte) (funclib.FuncReq, error) {
 	return *r, err
 }
 
-func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    r, err := decode(wrPrepArgs.Payload)
+func (fs *FuncServer) WritePrep(wpa *PumiceDBServer.PmdbCbArgs) int64 {
+    r, err := decode(wpa.Payload)
     if err != nil {
         log.Error("Failed to decode write prep request: ", err)
         return -1
     }
     
-    cw := (*int)(wrPrepArgs.ContinueWr)
+    cw := (*int)(wpa.ContinueWr)
     if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
         result, err := fn(r.Args)
         if err != nil {
@@ -75,7 +75,7 @@ func (fs *FuncServer) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) int64 {
             return -1
         }
         log.Infof("Write prep function %s executed successfully with result: %v", r.Name, result)
-        size, err := PumiceDBServer.PmdbCopyBytesToBuffer(result.([]byte), wrPrepArgs.AppData)
+        size, err := PumiceDBServer.PmdbCopyBytesToBuffer(result.([]byte), wpa.AppData)
         if err != nil {
             log.Error("Failed to copy data to buffer: ", err)
             goto error
@@ -94,11 +94,11 @@ error:
     
 }
 
-func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+func (fs *FuncServer) Apply(apar *PumiceDBServer.PmdbCbArgs) int64 {
     log.Info("Apply request received in FuncServer")
 
     //Get the function to be executed
-    r, err := decode(applyArgs.Payload)
+    r, err := decode(apar.Payload)
     if err != nil {
         log.Error("Failed to decode apply request: ", err)
         return -1
@@ -106,7 +106,7 @@ func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 
     if fn, exists := fs.ApplyFuncs[r.Name]; exists {
-        _, err = fn(applyArgs)
+        _, err = fn(apar)
         if err != nil {
             log.Error("Apply function %s failed: %v", r.Name, err)
             return -1
@@ -121,7 +121,7 @@ func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
         return -1
     }
 
-    ret, err := fn(applyArgs)
+    ret, err := fn(apar)
     if err != nil {
         log.Error("Default apply function failed: %v", err)
         return -1
@@ -130,15 +130,15 @@ func (fs *FuncServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
     return ret.(int64)
 }
 
-func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
+func (fs *FuncServer) Read(rda *PumiceDBServer.PmdbCbArgs) int64 {
     // Implement the read logic here
-    r, err := decode(readArgs.Payload)
+    r, err := decode(rda.Payload)
     if err != nil {
         log.Error("Failed to decode read request: ", err)
         return -1
     }
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
-        result, err := fn(readArgs, r.Args)
+        result, err := fn(rda, r.Args)
         if err != nil {
             log.Errorf("Read function %s failed: %v", r.Name, err)
             return -1
@@ -154,6 +154,6 @@ func (fs *FuncServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
     return -1
 }   
 
-func (nso *FuncServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
+func (nso *FuncServer) Init(ipa *PumiceDBServer.PmdbCbArgs) {
 	return
 }
