@@ -1,5 +1,5 @@
 #!/bin/bash
-
+unset LD_PRELOAD 
 HOLON_LIBS=${1}
 BIN_PATH=${2}
 LOG_PATH=${3}
