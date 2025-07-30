@@ -56,7 +56,7 @@ jobs:
                              '/home/runner/work/go/go/bin'
 
     - uses: ./.github/actions/teardown-success
-#      if: ${{ !failure() }}
+      if: ${{ success() }}
 
     - uses: ./.github/actions/teardown-failure
       if: failure() # run teardown regardless of failure
