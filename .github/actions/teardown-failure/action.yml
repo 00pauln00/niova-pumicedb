@@ -7,12 +7,13 @@ runs:
     - name: Prepare artifact filename
       id: prepare_artifact_filename
       run: |
-        echo ::set-output name=ARTIFACT_NAME::test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}
+        echo "ARTIFACT_NAME=test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
       shell: bash
 
     - name: Archive the test results
+      if: failure()
       uses: actions/upload-artifact@v4
       with:
          name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
          path: /home/runner/work/niovad/niovad/holon_log
-      if: failure()
+      

@@ -1,5 +1,5 @@
 name: Common CI Setup
-
+description: Sets up environment and dependencies for Niova-Pumicedb CI workflows.
 runs:
     using: "composite"
     steps:
@@ -28,7 +28,6 @@ runs:
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
       shell: bash
-
 
 # Install Ansible
     - name: Install Ansible
@@ -79,7 +78,7 @@ runs:
 #
     - name: make
       run: ./prepare.sh &&
-           ./configure --enable-devel --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+           ./configure --enable-devel --enable-asan --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
            make clean && make && make install
       shell: bash
       env:
