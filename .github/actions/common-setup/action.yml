@@ -63,14 +63,14 @@ runs:
 # build niova-core
     - name: build niova-core
       run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
       shell: bash
 
 # build niova-raft
     - name: build niova-raft
       run: cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
       shell: bash
 #
@@ -78,7 +78,7 @@ runs:
 #
     - name: make
       run: ./prepare.sh &&
-           ./configure --enable-devel --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+           ./configure --enable-devel --enable-asan --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
            make clean && make && make install
       shell: bash
       env:
