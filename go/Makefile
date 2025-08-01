@@ -1,18 +1,16 @@
-# Enable ASan for CGO builds
-ASAN_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g
 DIR=/usr/local/niova
-CGO_LDFLAGS=-L/${DIR}/lib/ ${ASAN_FLAGS}
-CGO_CFLAGS=-I/${DIR}/include/ ${ASAN_FLAGS}
-LD_LIBRARY_PATH=/${DIR}/niova-core/lib/
+ASAN_LIB_PATH=/lib/x86_64-linux-gnu
+CGO_LDFLAGS=-L/${DIR}/lib/ -L${ASAN_LIB_PATH} -lasan
+CGO_CFLAGS=-I/${DIR}/include/ 
+LD_LIBRARY_PATH=${ASAN_LIB_PATH}:/${DIR}/niova-core/lib/
 
-# CGO + ASan setup
-export CC=clang
-export CXX=clang++
 export CGO_ENABLED=1
 export CGO_LDFLAGS
 export CGO_CFLAGS
 export LD_LIBRARY_PATH
 export PATH
+
+ASAN_LDFLAGS=-ldflags="-extldflags '-L${ASAN_LIB_PATH} -lasan'"
 
 niovakv_all: compile niovakv covidapp foodpalaceapp leaseApp install
 
@@ -22,21 +20,21 @@ compile:
 	go mod tidy
 
 niovakv:
-	go build -o libexec/NKV_pmdbServer apps/niovaKV/pmdbServer/pmdbServer.go
-	go build -o libexec/NKV_proxy apps/niovaKV/proxy/proxy.go
-	go build -o libexec/nkvc apps/niovaKV/nkvc/nkvc.go
+	go build ${ASAN_LDFLAGS} -o libexec/NKV_pmdbServer apps/niovaKV/pmdbServer/pmdbServer.go
+	go build ${ASAN_LDFLAGS} -o libexec/NKV_proxy apps/niovaKV/proxy/proxy.go
+	go build ${ASAN_LDFLAGS} -o libexec/nkvc apps/niovaKV/nkvc/nkvc.go
 
 covidapp:
-	go build -o libexec/covid_app_server apps/covid19APP/server/covid_app_server.go
-	go build -o libexec/covid_app_client apps/covid19APP/client/covid_app_client.go
+	go build ${ASAN_LDFLAGS} -o libexec/covid_app_server apps/covid19APP/server/covid_app_server.go
+	go build ${ASAN_LDFLAGS} -o libexec/covid_app_client apps/covid19APP/client/covid_app_client.go
 
 foodpalaceapp:
-	go build -o libexec/foodpalaceappserver apps/foodpalaceAPP/server/foodpalaceappServer.go
-	go build -o libexec/foodpalaceappclient apps/foodpalaceAPP/client/foodpalaceappClient.go
+	go build ${ASAN_LDFLAGS} -o libexec/foodpalaceappserver apps/foodpalaceAPP/server/foodpalaceappServer.go
+	go build ${ASAN_LDFLAGS} -o libexec/foodpalaceappclient apps/foodpalaceAPP/client/foodpalaceappClient.go
 
 leaseApp:
-	go build -o libexec/LeaseApp_pmdbServer apps/leaseApp/pmdbServer/pmdbServer.go
-	go build -o libexec/leaseClient apps/leaseApp/client/leaseClient.go
+	go build ${ASAN_LDFLAGS} -o libexec/LeaseApp_pmdbServer apps/leaseApp/pmdbServer/pmdbServer.go
+	go build ${ASAN_LDFLAGS} -o libexec/leaseClient apps/leaseApp/client/leaseClient.go
 
 
 install:
