@@ -1,8 +1,14 @@
+# Enable ASan for CGO builds
+ASAN_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g
 DIR=/usr/local/niova
-CGO_LDFLAGS=-L/${DIR}/lib/
-CGO_CFLAGS=-I/${DIR}/include/
+CGO_LDFLAGS=-L/${DIR}/lib/ ${ASAN_FLAGS}
+CGO_CFLAGS=-I/${DIR}/include/ ${ASAN_FLAGS}
 LD_LIBRARY_PATH=/${DIR}/niova-core/lib/
 
+# CGO + ASan setup
+export CC=clang
+export CXX=clang++
+export CGO_ENABLED=1
 export CGO_LDFLAGS
 export CGO_CFLAGS
 export LD_LIBRARY_PATH
