@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
     "bytes"
     funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common"
-
+    "unsafe"
     "C"
 )
 
@@ -60,6 +60,26 @@ func decode(payload []byte) (funclib.FuncReq, error) {
 	return *r, err
 }
 
+func copyResultToBuffer(r interface{}, buf unsafe.Pointer, bufsz int) int64 {
+    if _, ok := r.([]byte); !ok {
+        log.Error("Func result is in unsupported format, expected []byte")
+        return -1
+    }
+
+    if len(r.([]byte)) > bufsz {
+        log.Error("Func result size is more than pumicedb buffer size (4MB)")
+        return -1
+    }
+
+    size, err := PumiceDBServer.PmdbCopyBytesToBuffer(r.([]byte), buf)
+    if err != nil {
+        log.Error("Failed to copy data to buffer: ", err)
+        return -1
+    }
+
+    return size
+}
+
 func (fs *FuncServer) WritePrep(wpa *PumiceDBServer.PmdbCbArgs) int64 {
     r, err := decode(wpa.Payload)
     if err != nil {
@@ -69,29 +89,24 @@ func (fs *FuncServer) WritePrep(wpa *PumiceDBServer.PmdbCbArgs) int64 {
     
     cw := (*int)(wpa.ContinueWr)
     if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
-        result, err := fn(r.Args)
+        res, err := fn(r.Args)
         if err != nil {
             log.Errorf("Write prep function %s failed: %v", r.Name, err)
             return -1
         }
-        log.Infof("Write prep function %s executed successfully with result: %v", r.Name, result)
-        size, err := PumiceDBServer.PmdbCopyBytesToBuffer(result.([]byte), wpa.AppData)
-        if err != nil {
-            log.Error("Failed to copy data to buffer: ", err)
-            goto error
-        }
+
+        size := copyResultToBuffer(res, wpa.AppData, int(wpa.AppDataSize))
         //Continue write if the function executed successfully
-        *cw = 1
-        log.Info("Data copied to buffer successfully, size: ", size)
-        
+        if size < 0 {
+            goto error       
+        } 
+
         return size
     }
 
 error:
     *cw = 0
     return -1
-    
-    
 }
 
 func (fs *FuncServer) Apply(apar *PumiceDBServer.PmdbCbArgs) int64 {
@@ -104,30 +119,32 @@ func (fs *FuncServer) Apply(apar *PumiceDBServer.PmdbCbArgs) int64 {
         return -1
     }
 
-
+    var res interface{}
     if fn, exists := fs.ApplyFuncs[r.Name]; exists {
-        _, err = fn(apar)
+        res, err = fn(apar)
         if err != nil {
             log.Error("Apply function %s failed: %v", r.Name, err)
             return -1
         }
-        log.Info("Apply function %s executed successfully with result: %v", r.Name)
-        return 0
-    }
-    
-    fn := fs.ApplyFuncs["*"]
-    if fn == nil {
-        log.Error("Apply function not found")
-        return -1
+        goto out
+
+    } else {
+        //Use wildcard function if exist
+        fn := fs.ApplyFuncs["*"]
+        if fn == nil {
+            log.Error("Wildcard apply function not found")
+            return -1
+        }
+        res, err = fn(apar)
+        if err != nil {
+            log.Error("Default apply function failed: %v", err)
+            return -1
+        }
     }
 
-    ret, err := fn(apar)
-    if err != nil {
-        log.Error("Default apply function failed: %v", err)
-        return -1
-    }
-
-    return ret.(int64)
+out:
+    size := copyResultToBuffer(res, apar.ReplyBuf, int(apar.ReplySize))
+    return size
 }
 
 func (fs *FuncServer) Read(rda *PumiceDBServer.PmdbCbArgs) int64 {
@@ -138,18 +155,16 @@ func (fs *FuncServer) Read(rda *PumiceDBServer.PmdbCbArgs) int64 {
         return -1
     }
     if fn, exists := fs.ReadFuncs[r.Name]; exists {
-        result, err := fn(rda, r.Args)
+        res, err := fn(rda, r.Args)
         if err != nil {
             log.Errorf("Read function %s failed: %v", r.Name, err)
             return -1
         }
 
-        if result != nil {
-            return result.(int64)
-        } else {
-            return int64(0)
-        }
+        size := copyResultToBuffer(res, rda.ReplyBuf, int(rda.ReplySize))
+        return size  
     }
+
     log.Errorf("Read function %s not found", r.Name)
     return -1
 }   
