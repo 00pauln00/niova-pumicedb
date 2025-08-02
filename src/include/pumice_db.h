@@ -33,7 +33,26 @@ struct pumicedb_cb_cargs
     enum raft_init_state_type             pcb_init;
     int                                  *pcb_continue_wr;
     void                                 *pcb_pmdb_handler;
+    
+    //pcb_user_data points to the pumice metadata struct
     void                                 *pcb_user_data;
+    
+    /*
+    pcb_reply_buf points to the offset of the allocated buffer
+    where the reply message can be placed, whereas the pcb_add_data
+    points the entier buffer from the start.
+
+    +----------------------------------------------------------+
+    |               Entire Allocated Buffer                    |
+    |     (pointed by: pcb_add_data → beginning of buffer)     |
+    |                 Also the msg header                      |
+    |        (contains metadata, opcodes, error, etc.)         |
+    |                [pmdb_msg fixed part]                     |
+    +----------------------------------------------------------+
+    |               Dynamic Payload Section                    |
+    |      (pointed by: pcb_reply_buf → payload start)         |
+    +----------------------------------------------------------+
+    */
     const void                           *pcb_app_data;
     size_t                                pcb_app_data_sz;
 };
