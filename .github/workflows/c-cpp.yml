@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: C/C++ CI - Basic Operation
 
 on:
   push:
@@ -33,19 +33,23 @@ jobs:
     - name: build libbacktrace
       run: cd modules/libbacktrace/ && ./configure && make && sudo make install
 
+# niova-raft submodule init
+    - name: submodule init (niova-raft)
+      run: cd modules/niova-raft && git submodule init && git submodule update
+
 # niova-core submodule init
     - name: submodule init (niova-core)
-      run: cd modules/niova-core && git submodule init && git submodule update
+      run: cd modules/niova-raft/modules/niova-core && git submodule init && git submodule update
 
 # build niova-core
     - name: build niova-core
-      run: git submodule update && cd modules/niova-core/ && ./prepare.sh &&
+      run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 
 # build niova-raft
     - name: build niova-raft
-      run: git submodule update && cd modules/niova-raft/ && ./prepare.sh &&
+      run: cd modules/niova-raft/ && ./prepare.sh &&
         ./configure --enable-devel --prefix=/usr/local/niova --with-niova=/usr/local/niova &&
         make -j 4 && make -j 4 check && sudo make install
 

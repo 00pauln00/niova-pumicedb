@@ -2,13 +2,13 @@ package leaseclient
 
 import (
 	"bytes"
-	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	"encoding/gob"
 	"errors"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 
-	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
 	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
 
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
@@ -55,21 +55,20 @@ Arguments : LeaseReq, rncui, *LeaseResp
 Return(s) : error
 Description : Wrapper function for WriteEncoded() function
 */
-func (clientObj LeaseClient) write(reqBytes *[]byte, rncui string, response *[]byte) error {
-	var err error
+func (co LeaseClient) write(obj *[]byte, rncui string,
+	response *[]byte) error {
+
 	var replySize int64
 
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:       rncui,
-		ReqByteArr:  *reqBytes,
+		ReqByteArr:  *obj,
 		GetResponse: 1,
 		ReplySize:   &replySize,
 		Response:    response,
 	}
 
-	err = clientObj.PmdbClientObj.WriteEncodedAndGetResponse(reqArgs)
-
-	return err
+	return co.PmdbClientObj.PutEncodedAndGetResponse(reqArgs)
 }
 
 /*
@@ -77,17 +76,18 @@ Structure : LeaseHandler
 Method	  : read()
 Arguments : LeaseReq, rncui, *response
 Return(s) : error
-Description : Wrapper function for ReadEncoded() function
+Description : Wrapper function for GetEncoded() function
 */
-func (clientObj LeaseClient) read(reqBytes *[]byte, rncui string, response *[]byte) error {
+func (co LeaseClient) read(obj *[]byte, rncui string,
+	response *[]byte) error {
 
 	reqArgs := &pmdbClient.PmdbReqArgs{
 		Rncui:      rncui,
-		ReqByteArr: *reqBytes,
+		ReqByteArr: *obj,
 		Response:   response,
 	}
 
-	return clientObj.PmdbClientObj.ReadEncoded(reqArgs)
+	return co.PmdbClientObj.GetEncoded(reqArgs)
 }
 
 /*
@@ -97,7 +97,9 @@ Arguments :
 Return(s) : error
 Description : Initialize the handler's leaseReq struct
 */
-func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource, rncui string, operation int) error {
+func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource, rncui string,
+	operation int) error {
+
 	rUUID, err := uuid.FromString(resource)
 	if err != nil {
 		log.Error(err)

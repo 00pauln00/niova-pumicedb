@@ -1,0 +1,18 @@
+name: Common CI Teardown on Success
+
+description: Archives recipe report logs after successful CI runs.
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare artifact filename
+      id: prepare_artifact_filename
+      run: |
+        echo "ARTIFACT_NAME=test-recipe-report_${{ github.sha }}_${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Archive the test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
+        path: /home/runner/work/niovad/niovad/holon_log

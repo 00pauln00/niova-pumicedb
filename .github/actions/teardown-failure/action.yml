@@ -1,0 +1,16 @@
+name: Common CI Teardown on Failure
+description: Archives logs on failure
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare artifact filename
+      id: prepare_artifact_filename
+      run: echo "ARTIFACT_NAME=test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Archive the test results
+      if: always()  
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
+        path: /home/runner/work/niovad/niovad/holon_log

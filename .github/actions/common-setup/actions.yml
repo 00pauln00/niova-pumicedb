@@ -1,26 +1,16 @@
-name: lease_stale_recipes
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+name: Common CI Setup
 
-jobs:
-  build:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
+runs:
+    using: "composite"
     steps:
-    - uses: actions/checkout@v4
     - name: Checkout
       uses: actions/checkout@v4
 
     - name: apt update
       run: sudo apt update
-      shell: bash
 
     - name: dpkg / rpm prep
       run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
-      shell: bash
 
 # Install golang
     - name: Install golang 1.20.3
@@ -30,65 +20,54 @@ jobs:
            tar -C /home/runner/work/go -xzf go1.20.3.linux-amd64.tar.gz &&
            sudo ln -s /home/runner/work/go/go/bin/go /bin/ &&
            go version
-      shell: bash
 
 # Install python libraries
     - name: Install python libraries
       run:  pip3 install setuptools wheel func_timeout sockets psutil dpath jmespath
-      shell: bash
 
 # Install Ansible
     - name: Install Ansible
       run:  pip3 install ansible==9.2
-      shell: bash
 
     - name: Build Dir
       run:  mkdir -p /home/runner/work/niovad/niovad/build_dir/
-      shell: bash
 
 #
 #### Submodule Bits
 # niova-pumicedb submodule init
     - name: submodule init
       run: git submodule init && git submodule update
-      shell: bash
 
 # build backtrace submodule
     - name: build libbacktrace
       run: cd modules/libbacktrace/ && ./configure && make && sudo make install
-      shell: bash
 
 # niova-raft submodule init
     - name: submodule init (niova-raft)
       run: cd modules/niova-raft && git submodule init && git submodule update
-      shell: bash
 
 # niova-core submodule init
     - name: submodule init (niova-core)
       run: cd modules/niova-raft/modules/niova-core && git submodule init && git submodule update
-      shell: bash
 
 # build niova-core
     - name: build niova-core
       run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
-      shell: bash
 
 # build niova-raft
     - name: build niova-raft
       run: cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
-      shell: bash
 #
 #### End Submodule Bits
 #
     - name: make
       run: ./prepare.sh &&
-           ./configure --enable-devel --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+           ./configure --enable-devel --enable-asan --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
            make clean && make && make install
-      shell: bash
       env:
         LD_LIBRARY_PATH: /home/runner/work/niovad/niovad/build_dir/lib
 
@@ -97,7 +76,6 @@ jobs:
            which go &&
            cd go &&
            make -e DIR=/home/runner/work/niovad/niovad/build_dir/
-      shell: bash
 
 # Checkout holon repo
     - name: Checkout repository
@@ -109,33 +87,11 @@ jobs:
 
     - name: Copy holon repo
       run: cp -r ./holon /home/runner/work/niovad/niovad/build_dir/
-      shell: bash
 
     - name: Create log directory for storing holon logs
       run: mkdir  /home/runner/work/niovad/niovad/holon_log
-      shell: bash
 
 # GCOV Setup
     - name: Create dir for cover data counters, metadata to be placed
       run: mkdir  /home/runner/work/niovad/niovad/code_cov &&
            export GOCOVERDIR=/work/niovad/niovad/code_cov
-      shell: bash
-
-    - name: Copy script to run recipes
-      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp scripts/lease_stale_recipes.txt /home/runner/work/niovad/niovad/build_dir/
-
-    - name:  run recipes for lease application
-      run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
-           ../run-recipes.sh '/home/runner/work/niovad/niovad/build_dir/holon'
-                             '/home/runner/work/niovad/niovad/build_dir'
-                             '/home/runner/work/niovad/niovad/holon_log' 5
-                             '/home/runner/work/niovad/niovad/build_dir/lease_stale_recipes.txt'
-                             'lease'
-                             '/home/runner/work/go/go/bin'
-
-    - uses: ./.github/actions/teardown-success
-      if: ${{ success() }}
-
-    - uses: ./.github/actions/teardown-failure
-      if: failure() # run teardown regardless of failure

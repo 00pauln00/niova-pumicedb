@@ -3,20 +3,20 @@ package main
 import (
 	"bufio"
 	"bytes"
-	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
-	httpServer "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpserver"
-	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
-	serfAgent "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfagent"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
+	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
+	httpServer "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpserver"
+	serfAgent "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfagent"
 	"io/ioutil"
 	defaultLogger "log"
 	"net"
-	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"os"
 	"os/signal"
 	"strconv"
@@ -241,7 +241,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 		ReplySize:   &replySize,
 		GetResponse: 0,
 	}
-	_, err := handler.pmdbClientObj.WriteEncoded(reqArgs)
+	_, err := handler.pmdbClientObj.PutEncoded(reqArgs)
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
@@ -262,7 +262,7 @@ func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) erro
 		ReqByteArr: request,
 		Response:   response,
 	}
-	return handler.pmdbClientObj.ReadEncoded(reqArgs)
+	return handler.pmdbClientObj.GetEncoded(reqArgs)
 }
 
 func (handler *proxyHandler) start_HTTPServer() error {

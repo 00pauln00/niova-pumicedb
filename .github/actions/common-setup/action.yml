@@ -1,16 +1,8 @@
-name: lease_stale_recipes
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  build:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
+name: Common CI Setup
+description: Sets up environment and dependencies for Niova-Pumicedb CI workflows.
+runs:
+    using: "composite"
     steps:
-    - uses: actions/checkout@v4
     - name: Checkout
       uses: actions/checkout@v4
 
@@ -71,14 +63,14 @@ jobs:
 # build niova-core
     - name: build niova-core
       run: cd modules/niova-raft/modules/niova-core/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
       shell: bash
 
 # build niova-raft
     - name: build niova-raft
       run: cd modules/niova-raft/ && ./prepare.sh &&
-        ./configure --enable-devel --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
+        ./configure --enable-devel --enable-asan --prefix=/home/runner/work/niovad/niovad/build_dir/ --with-niova=/home/runner/work/niovad/niovad/build_dir/ &&
         make -j 4 && make -j 4 check && make install
       shell: bash
 #
@@ -86,7 +78,7 @@ jobs:
 #
     - name: make
       run: ./prepare.sh &&
-           ./configure --enable-devel --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
+           ./configure --enable-devel --enable-asan --with-niova=/home/runner/work/niovad/niovad/build_dir/ --prefix=/home/runner/work/niovad/niovad/build_dir/ &&
            make clean && make && make install
       shell: bash
       env:
@@ -120,22 +112,3 @@ jobs:
       run: mkdir  /home/runner/work/niovad/niovad/code_cov &&
            export GOCOVERDIR=/work/niovad/niovad/code_cov
       shell: bash
-
-    - name: Copy script to run recipes
-      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp scripts/lease_stale_recipes.txt /home/runner/work/niovad/niovad/build_dir/
-
-    - name:  run recipes for lease application
-      run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
-           ../run-recipes.sh '/home/runner/work/niovad/niovad/build_dir/holon'
-                             '/home/runner/work/niovad/niovad/build_dir'
-                             '/home/runner/work/niovad/niovad/holon_log' 5
-                             '/home/runner/work/niovad/niovad/build_dir/lease_stale_recipes.txt'
-                             'lease'
-                             '/home/runner/work/go/go/bin'
-
-    - uses: ./.github/actions/teardown-success
-      if: ${{ success() }}
-
-    - uses: ./.github/actions/teardown-failure
-      if: failure() # run teardown regardless of failure

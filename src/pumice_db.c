@@ -565,8 +565,8 @@ pmdb_cowr_sub_app_lookup(const struct raft_net_client_user_id *rncui,
 static struct pmdb_cowr_sub_app *
 pmdb_cowr_sub_app_add(const struct raft_net_client_user_id *rncui,
                       const uuid_t client_uuid, const int current_term,
-                      int *ret_error,
-                      const char *caller_func, const int caller_lineno)
+                      int *ret_error, const char *caller_func,
+                      const int caller_lineno)
 {
     NIOVA_ASSERT(rncui);
     (void)caller_func;
@@ -596,19 +596,23 @@ pmdb_cowr_sub_app_add(const struct raft_net_client_user_id *rncui,
 
     if (error) // The entry already existed
     {
-        /*
-         * -EALREADY indicates write request is already in coalesced buffer.
+        /* -EALREADY indicates write request is already in coalesced buffer.
          * Convert the error to -EINPROGRESS as -EALREADY means write is
          * already committed in pmdb_sm_handler_client_write().
          */
         if (error == -EALREADY || error == -EEXIST)
         {
-            PMDB_STR_DEBUG(LL_DEBUG, &subapp->pcwsa_rncui, "RNCUI already added");
+            PMDB_STR_DEBUG(LL_DEBUG, &subapp->pcwsa_rncui,
+                           "RNCUI already added");
+
             *ret_error = -EINPROGRESS;
+
             // If the different client is trying to use existing rncui.
             if (uuid_compare(subapp->pcwsa_client_uuid, client_uuid))
             {
-                LOG_MSG(LL_DEBUG, "Different client trying out existing rncui");
+                LOG_MSG(LL_DEBUG,
+                        "Different client trying out existing rncui");
+
                 *ret_error = -EPERM;
             }
         }
@@ -617,7 +621,9 @@ pmdb_cowr_sub_app_add(const struct raft_net_client_user_id *rncui,
     }
 
     PMDB_STR_DEBUG(LL_DEBUG, &subapp->pcwsa_rncui, "RNCUI added successfully");
-    NIOVA_ASSERT(pmdb_cowr_tree_term == -1 || pmdb_cowr_tree_term == current_term);
+
+    NIOVA_ASSERT(pmdb_cowr_tree_term == -1 ||
+                 pmdb_cowr_tree_term == current_term);
 
     if (pmdb_cowr_tree_term == -1)
         pmdb_cowr_tree_term = current_term;
@@ -691,8 +697,10 @@ pmdb_range_read_release_old_snapshots(void)
 
     if (FAULT_INJECT(pmdb_range_read_keep_old_snapshot))
     {
-        SIMPLE_LOG_MSG(LL_DEBUG,
-                       "Dont destroy the older snapshot as fault ineject is set");
+        SIMPLE_LOG_MSG(
+            LL_DEBUG,
+            "pmdb_range_read_keep_old_snapshot fault injection is set");
+
         return;
     }
 
@@ -738,8 +746,8 @@ pmdb_range_read_req_lookup(const uint64_t seq_number,
     if (rr)
     {
         SIMPLE_LOG_MSG(LL_DEBUG, "%s:%d", caller_func, caller_lineno);
-        /*
-         * As snapshot is being reused, move it to prrq_queue tail and change
+
+        /* As snapshot is being reused, move it to prrq_queue tail and change
          * its access time.
          */
         niova_realtime_coarse_clock(&rr->prrq_snap_atime);
@@ -797,7 +805,8 @@ pmdb_range_read_req_add(const uint64_t seq_number,
         return rr_req;
     }
 
-    SIMPLE_LOG_MSG(LL_WARN, "Snapshot for sequence number (%lu) added successfully",
+    SIMPLE_LOG_MSG(LL_WARN,
+                   "Snapshot for sequence number (%lu) added successfully",
                    rr_req->prrq_seq);
 
     return rr_req;
@@ -857,18 +866,15 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
     if (rc < 0)
     {
-        raft_client_net_request_handle_error_set(rncr,
-                                                 -EPERM,
-                                                 0, -EPERM);
+        raft_client_net_request_handle_error_set(rncr, -EPERM, 0, -EPERM);
         rc = -EPERM;
     }
     else if (rc >= 0 && !*continue_wr)
     {
          // Write prepare was successful but application chooses to bypass
          // the raft write
-         raft_client_net_request_handle_error_set(rncr,
-                                                  -EALREADY,
-                                                  0, 0);
+         raft_client_net_request_handle_error_set(rncr, -EALREADY, 0, 0);
+
          pmdb_reply->pmdbrm_data_size = rc;
          reply->rcrm_data_size += (uint32_t)rc;
     }
@@ -908,8 +914,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
     bool new_object = false;
     int64_t prev_pending_term = -1;
 
-    int rc = pmdb_object_lookup(rncui, &obj,
-                                rncr->rncr_current_term);
+    int rc = pmdb_object_lookup(rncui, &obj, rncr->rncr_current_term);
     if (rc)
     {
         if (rc == -ENOENT)
@@ -974,14 +979,15 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                                   &error, __func__,
                                   __LINE__);
             if (!cowr_sa)
-                raft_client_net_request_handle_error_set(
-                        rncr, error, 0, error);
-
+            {
+                raft_client_net_request_handle_error_set(rncr, error, 0, error);
+            }
             else // Request sequence test passes, will enter the raft log.
             {
                 int continue_wr = 1;
                 rc = pmdb_write_prep_cb(rncr, &continue_wr);
-                // If write_prep return success and allow to continue raft write.
+
+                // Check pmdb_write_prep_cb() value set in continue_wr
                 if (!rc && continue_wr)
                     pmdb_prep_raft_entry_write(rncr, &obj);
             }
@@ -1033,8 +1039,10 @@ pmdb_sm_handler_client_read(struct raft_net_client_request_handle *rncr)
         LOG_MSG(LL_DEBUG, "rncui is read any");
     }
 
-    if (!rrc || pmdb_rncui_is_read_any(&pmdb_req->pmdbrm_user_id))   // Ok.  Continue to read operation
+
+    if (!rrc || pmdb_rncui_is_read_any(&pmdb_req->pmdbrm_user_id))
     {
+        // Continue to read operation
         struct pumicedb_cb_cargs read_cb_args;
         pumicedb_init_cb_args(&pmdb_req->pmdbrm_user_id,
                               pmdb_req->pmdbrm_data,
@@ -1192,7 +1200,8 @@ pmdb_sm_handler_pmdb_sm_apply_remove_coalesce_tree_item(
         return;
     }
 
-    NIOVA_ASSERT(pmdb_cowr_tree_term == -1 || pmdb_cowr_tree_term == rncr->rncr_current_term);
+    NIOVA_ASSERT(pmdb_cowr_tree_term == -1 ||
+                 pmdb_cowr_tree_term == rncr->rncr_current_term);
 
     // Else 'leader'
     /* We use an RB_TREE lookup here since the pointer cannot easily be
@@ -1308,8 +1317,7 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
 
 
     // Call into the application so it may emplace its own KVs.
-    ssize_t apply_rc =
-        pmdbApi->pmdb_apply(&apply_args);
+    ssize_t apply_rc = pmdbApi->pmdb_apply(&apply_args);
 
     // rc of 0 means the client will get a reply and removal of coalesced
     // tree item only leader should send the reply back to client.
@@ -1320,8 +1328,9 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
             // Add the reply size to the RPC reply
             reply->rcrm_data_size += (uint32_t)apply_rc;
 
-            pmdb_reply->pmdbrm_data_size = apply_rc >= 0 ?
-                                           (uint32_t)apply_rc : 0;
+            pmdb_reply->pmdbrm_data_size =
+                apply_rc >= 0 ? (uint32_t)apply_rc : 0;
+
             // Pass in ID_ANY_64bit since this is a reply.
             pmdb_obj_to_reply(&obj, pmdb_reply, ID_ANY_64bit,
                               apply_rc < 0 ? apply_rc: 0);
