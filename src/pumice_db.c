@@ -151,8 +151,8 @@ struct pmdb_apply_handle
 #define PMDB_OBJ_DEBUG(log_level, pmdbo, fmt, ...)                          \
 do {                                                                        \
     DEBUG_BLOCK(log_level) {                                                \
-        char __uuid_str[UUID_STR_LEN];                                  \
-        uuid_unparse(                                                   \
+        char __uuid_str[UUID_STR_LEN];                                      \
+        uuid_unparse(                                                       \
             RAFT_NET_CLIENT_USER_ID_2_UUID(&(pmdbo)->pmdb_obj_rncui, 0, 0), \
             __uuid_str);                                                    \
         LOG_MSG(log_level,                                                  \
@@ -173,21 +173,21 @@ do {                                                                        \
             (pmdbo)->pmdb_obj_pending_term,                                 \
             (pmdbo)->pmdb_obj_msg_id,                                       \
             ##__VA_ARGS__);                                                 \
-    }                                                                   \
+    }                                                                       \
 } while (0)
 
-#define PMDB_STR_DEBUG(log_level, pmdb_rncui, fmt, ...)                \
-do {                                                                \
-    DEBUG_BLOCK(log_level) {                                                \
+#define PMDB_STR_DEBUG(log_level, pmdb_rncui, fmt, ...)                 \
+do {                                                                    \
+    DEBUG_BLOCK(log_level) {                                            \
         char __uuid_str[UUID_STR_LEN];                                  \
-        uuid_unparse(RAFT_NET_CLIENT_USER_ID_2_UUID(pmdb_rncui, 0, 0), \
-                     __uuid_str);                                      \
-        LOG_MSG(log_level, "%s.%lx.%lx: "fmt,                          \
-                __uuid_str,                                            \
-            RAFT_NET_CLIENT_USER_ID_2_UINT64(pmdb_rncui, 0, 2),        \
-            RAFT_NET_CLIENT_USER_ID_2_UINT64(pmdb_rncui, 0, 3),        \
-            ##__VA_ARGS__);                                            \
-    }                                                                  \
+        uuid_unparse(RAFT_NET_CLIENT_USER_ID_2_UUID(pmdb_rncui, 0, 0),  \
+                     __uuid_str);                                       \
+        LOG_MSG(log_level, "%s.%lx.%lx: "fmt,                           \
+                __uuid_str,                                             \
+                RAFT_NET_CLIENT_USER_ID_2_UINT64(pmdb_rncui, 0, 2),     \
+                RAFT_NET_CLIENT_USER_ID_2_UINT64(pmdb_rncui, 0, 3),     \
+                ##__VA_ARGS__);                                         \
+    }                                                                   \
 } while (0)
 
 static void
@@ -585,7 +585,6 @@ pmdb_cowr_sub_app_add(const struct raft_net_client_user_id *rncui,
     struct pmdb_cowr_sub_app *subapp = RT_GET_ADD(pmdb_cowr_sub_app_tree,
                                                   &pmdb_cowr_sub_apps, &cowr,
                                                   &error);
-
     if (!subapp)
     {
         LOG_MSG(LL_WARN, "Can not add RB entry pmdb_cowr_sub_app_add(): %s",
@@ -697,22 +696,24 @@ pmdb_range_read_release_old_snapshots(void)
 
     if (FAULT_INJECT(pmdb_range_read_keep_old_snapshot))
     {
-        SIMPLE_LOG_MSG(LL_ERROR,
-                       "Dont destroy the older snapshot as fault ineject is set");
+        SIMPLE_LOG_MSG(
+            LL_ERROR,
+            "Bypass release due to finj pmdb_range_read_keep_old_snapshot");
         return;
     }
 
     CIRCLEQ_FOREACH_SAFE(rr, &prrq_queue, prrq_lentry, tmp_rr)
     {
-        /* If snapshot was open for more than 60secs, release the snapshot */
+        // If snapshot was open for more than 60secs, release the snapshot
         if ((now.tv_sec - rr->prrq_snap_atime.tv_sec) >=
              PMDB_SNAPSHOT_MAX_OPEN_TIME_SEC)
         {
              pmdb_range_read_req_put(rr, __func__, __LINE__);
         }
         else
-            // List sorted with time.
-            break;
+        {
+            break; // List sorted with time.
+        }
     }
 }
 
@@ -860,7 +861,9 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0,
                           continue_wr, NULL,
-                          pmdb_user_data, rncr->rncr_app_data.rncr_app_data_ptr, rncr->rncr_app_data.rncr_app_data_max_size,
+                          pmdb_user_data,
+                          rncr->rncr_app_data.rncr_app_data_ptr,
+                          rncr->rncr_app_data.rncr_app_data_max_size,
                           &write_prep_cb_args);
 
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
@@ -970,21 +973,22 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                 PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
             int continue_wr = 1;
 
-            pumicedb_init_cb_args(rncui, pmdb_req->pmdbrm_data,
-                          pmdb_req->pmdbrm_data_size,
-                          pmdb_reply ?
-                          pmdb_reply->pmdbrm_data : NULL,
-                          max_reply_size, 0, &continue_wr, NULL,
-                          pmdb_user_data, rncr->rncr_app_data.rncr_app_data_ptr, rncr->rncr_app_data.rncr_app_data_max_size,
-                          &reply_cb_args);
+            pumicedb_init_cb_args(
+                rncui, pmdb_req->pmdbrm_data,
+                pmdb_req->pmdbrm_data_size,
+                pmdb_reply ?
+                pmdb_reply->pmdbrm_data : NULL,
+                max_reply_size, 0, &continue_wr, NULL,
+                pmdb_user_data, rncr->rncr_app_data.rncr_app_data_ptr,
+                rncr->rncr_app_data.rncr_app_data_max_size,
+                &reply_cb_args);
 
             rc = pmdbApi->pmdb_fill_reply(&reply_cb_args);
 
             if (rc < 0)
             {
-                raft_client_net_request_handle_error_set(rncr,
-                                                    -EPERM,
-                                                    0, -EPERM);
+                raft_client_net_request_handle_error_set(rncr, -EPERM, 0,
+                                                         -EPERM);
                 rc = -EPERM;
             }
             else if (pmdb_reply && rc > 0)
@@ -1031,8 +1035,10 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
             {
                 int continue_wr = 1;
                 rc = pmdb_write_prep_cb(rncr, &continue_wr);
-                // If write_prep return success and allow to continue raft write.
-                if (!rc && continue_wr) {
+
+                // Continue to raft write on write_prep() success
+                if (!rc && continue_wr)
+                {
                     pmdb_prep_raft_entry_write(rncr, &obj);
                     return 0;
                 }
@@ -1046,7 +1052,9 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
     }
 
     // Stash the obj metadata into the reply
-    struct pmdb_msg *pmdb_reply = RAFT_NET_MAP_RPC(pmdb_msg, rncr->rncr_reply.rncr_reply_ptr);
+    struct pmdb_msg *pmdb_reply =
+        RAFT_NET_MAP_RPC(pmdb_msg, rncr->rncr_reply.rncr_reply_ptr);
+
     pmdb_obj_to_reply(&obj, pmdb_reply, rncr->rncr_current_term, rc);
 
     PMDB_OBJ_DEBUG((rncr->rncr_op_error == -EBADE ? LL_NOTIFY : LL_DEBUG),
@@ -1071,8 +1079,8 @@ pmdb_sm_handler_client_read(struct raft_net_client_request_handle *rncr)
 
     NIOVA_ASSERT(pmdb_req->pmdbrm_data_size <= PMDB_MAX_APP_RPC_PAYLOAD_SIZE);
 
-    const size_t max_reply_size =
-        rncr->rncr_reply.rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
+    const size_t max_reply_size = (rncr->rncr_reply.rncr_reply_data_max_size -
+                                   PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP);
 
     // Lookup the 'root' object
     struct pmdb_object obj = {0};
@@ -1347,11 +1355,13 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
     struct raft_net_sm_write_supplements *ws = &rncr->rncr_sm_write_supp;
     struct pmdb_apply_handle pah = {.pah_rncui = rncui, .pah_ws = ws};
     struct pmdb_msg *pmdb_reply = NULL;
-    const size_t max_reply_size =
-        rncr->rncr_reply.rncr_reply_data_max_size - PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP;
+    const size_t max_reply_size = (rncr->rncr_reply.rncr_reply_data_max_size -
+                                   PMDB_RESERVED_RPC_PAYLOAD_SIZE_UDP);
 
-    const void *app_data = rncr->rncr_request_or_commit_data + sizeof(struct pmdb_msg) +
-                           pmdb_req->pmdbrm_data_size;
+    const void *app_data = (rncr->rncr_request_or_commit_data +
+                            sizeof(struct pmdb_msg) +
+                            pmdb_req->pmdbrm_data_size);
+
     const size_t app_data_sz = rncr->rncr_request_or_commit_data_size -
                         (sizeof(struct pmdb_msg) + pmdb_req->pmdbrm_data_size);
 
