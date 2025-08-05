@@ -97,9 +97,6 @@ func (pco *PmdbClientObj) Put(ra *PmdbReqArgs) (unsafe.Pointer, error) {
 
 	var rBytes bytes.Buffer
 	var err error
-	var wr_err error
-	var replyB unsafe.Pointer
-	var replySize int64
 
 	enc := gob.NewEncoder(&rBytes)
 	err = enc.Encode(ra.ReqED)
