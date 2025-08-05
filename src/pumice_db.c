@@ -702,8 +702,6 @@ pmdb_range_read_release_old_snapshots(void)
         return;
     }
 
-    SIMPLE_LOG_MSG(LL_ERROR, "Deleting snapshot");
-
     CIRCLEQ_FOREACH_SAFE(rr, &prrq_queue, prrq_lentry, tmp_rr)
     {
         /* If snapshot was open for more than 60secs, release the snapshot */
@@ -958,11 +956,12 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
         raft_client_net_request_handle_error_set(rncr, -EALREADY, 0, 0);
         SIMPLE_LOG_MSG(LL_WARN, "less rncui");
     }
-    else if (pmdb_req->pmdbrm_write_seqno == obj.pmdb_obj_commit_seqno &&
-        obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
+    else if ((pmdb_req->pmdbrm_write_seqno == obj.pmdb_obj_commit_seqno) &&
+            (obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY))
     {
         // pmdbApi->pmdb_fill_reply callback
-        if (pmdbApi->pmdb_fill_reply) {
+        if (pmdbApi->pmdb_fill_reply)
+        {
             struct pumicedb_cb_cargs reply_cb_args;
 
             struct raft_client_rpc_msg *reply = (struct raft_client_rpc_msg *) rncr->rncr_reply;
@@ -989,7 +988,8 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                                                     0, -EPERM);
                 rc = -EPERM;
             }
-            else if (pmdb_reply && rc > 0) {
+            else if (pmdb_reply && rc > 0)
+            {
                 pmdb_reply->pmdbrm_data_size = (uint32_t)rc;
                 reply->rcrm_data_size += (uint32_t)rc;
             }
