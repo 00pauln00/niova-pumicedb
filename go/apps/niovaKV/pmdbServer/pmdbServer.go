@@ -208,3 +208,8 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Reply size: ", replySize)
 	return replySize
 }
+
+func (cso *NiovaKVServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+	log.Info("FillReply callback for duplicate rncui")
+    return 0
+}

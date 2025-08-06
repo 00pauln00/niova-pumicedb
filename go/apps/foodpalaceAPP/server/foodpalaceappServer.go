@@ -222,3 +222,10 @@ func main() {
 		log.Error(err)
 	}
 }
+
+
+func (cso *FoodpalaceServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
+    fmt.Println("FillReply callback for duplicate rncui")
+	log.Info("FillReply callback for duplicate rncui")
+    return 0
+}

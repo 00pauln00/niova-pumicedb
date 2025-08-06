@@ -19,6 +19,8 @@ typedef ssize_t pumicedb_apply_ctx_ssize_t;
 typedef ssize_t pumicedb_write_prep_ctx_ssize_t;
 typedef ssize_t pumicedb_read_ctx_ssize_t;
 typedef void    pumicedb_init_ctx_void_t;
+typedef ssize_t pumicedb_fill_reply_ctx_ssize_t;
+
 
 //common arguments for pumicedb callback functions.
 struct pumicedb_cb_cargs
@@ -31,7 +33,28 @@ struct pumicedb_cb_cargs
     enum raft_init_state_type             pcb_init;
     int                                  *pcb_continue_wr;
     void                                 *pcb_pmdb_handler;
+    
+    //pcb_user_data points to the pumice metadata struct
     void                                 *pcb_user_data;
+    
+    /*
+    pcb_reply_buf points to the offset of the allocated buffer
+    where the reply message can be placed, whereas the pcb_add_data
+    points the entier buffer from the start.
+
+    +----------------------------------------------------------+
+    |               Entire Allocated Buffer                    |
+    |     (pointed by: pcb_add_data → beginning of buffer)     |
+    |                 Also the msg header                      |
+    |        (contains metadata, opcodes, error, etc.)         |
+    |                [pmdb_msg fixed part]                     |
+    +----------------------------------------------------------+
+    |               Dynamic Payload Section                    |
+    |      (pointed by: pcb_reply_buf → payload start)         |
+    +----------------------------------------------------------+
+    */
+    const void                           *pcb_app_data;
+    size_t                                pcb_app_data_sz;
 };
 
 /**
@@ -75,12 +98,16 @@ typedef pumicedb_write_prep_ctx_ssize_t
 typedef pumicedb_init_ctx_void_t
 (*pmdb_init_sm_handler_t)(struct pumicedb_cb_cargs *args);
 
+typedef pumicedb_fill_reply_ctx_ssize_t
+(*pmdb_fill_reply_sm_handler_t)(struct pumicedb_cb_cargs *args);
+
 struct PmdbAPI
 {
     pmdb_write_prep_sm_handler_t      pmdb_write_prep;
     pmdb_apply_sm_handler_t           pmdb_apply;
     pmdb_read_sm_handler_t            pmdb_read;
     pmdb_init_sm_handler_t            pmdb_init;
+    pmdb_fill_reply_sm_handler_t      pmdb_fill_reply;
 };
 
 /**

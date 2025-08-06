@@ -138,3 +138,8 @@ func (lso *leaseServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 func (lso *leaseServer) PrepPeer(prepPeer *PumiceDBServer.PmdbCbArgs) {
 	return
 }
+
+func (cso *leaseServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64{
+	log.Info("FillReply callback for duplicate rncui")
+	return 0
+}

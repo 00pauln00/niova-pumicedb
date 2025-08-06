@@ -18,6 +18,8 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
+	ReadFuncHandler	    func(string, []byte, *[]byte) error
+	WriteFuncHandler    func(string, string, []byte, *[]byte) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -166,6 +168,46 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 	}
 }
 
+func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
+	body, err := ioutil.ReadAll(reader.Body)
+	if err != nil {
+		log.Error("Error reading request body: ", err)
+		http.Error(writer, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	defer reader.Body.Close()
+
+	name := reader.URL.Query().Get("name")
+	rncui := reader.URL.Query().Get("rncui")
+	var response []byte
+	
+	switch reader.Method {
+	case "GET":
+		err = handler.ReadFuncHandler(name, body, &response)
+	case "PUT":
+		err = handler.WriteFuncHandler(name, rncui, body, &response)
+	}
+	if err != nil {
+		log.Error("Error in FuncHandler: ", err)
+		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if response != nil {
+		// Write the response back to the client
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_, err = writer.Write(response)
+		if err != nil {
+			log.Error("Error writing response: ", err)
+			http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		http.Error(writer, "No response from function", http.StatusNotFound)
+	}
+}
+
 //HTTP server handler called when request is received
 func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *http.Request) {
 	if reader.URL.Path == "/config" {
@@ -174,6 +216,8 @@ func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *
 		handler.statHandler(writer, reader)
 	} else if reader.URL.Path == "/check" {
 		writer.Write([]byte("HTTP server in operation"))
+	} else if reader.URL.Path == "/func" {
+		handler.HTTPFuncHandler(writer, reader)
 	} else {
 		handler.kvRequestHandler(writer, reader)
 	}
