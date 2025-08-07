@@ -135,10 +135,19 @@ func (pco *PmdbClientObj) PutEncodedAndGetResponse(ra *PmdbReqArgs) error {
 	var wr_err error
 	var replyB unsafe.Pointer
 
-	replyB, wr_err = pco.PutEncoded(ra)
+
+	rp := unsafe.Pointer(&ra.ReqByteArr[0])
+	rqPtr := (*C.char)(rp)
+	rqLen := int64(len(ra.ReqByteArr))
+	rsBool := (C.int)(ra.GetResponse)
+
+	replyB, wr_err = pco.put(ra.Rncui, rqPtr,
+		rqLen, rsBool, &replySize)
 	if wr_err != nil {
 		return wr_err
 	}
+
+
 
 	if replyB != nil {
 		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
