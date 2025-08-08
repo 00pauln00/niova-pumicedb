@@ -3,6 +3,8 @@ description: Archives logs on failure
 runs:
   using: "composite"
   steps:
+    - name: Cat time per recipe file
+      run: cd /home/runner/work/niovad/niovad/build_dir && cat timefl
     - name: Prepare artifact filename
       id: prepare_artifact_filename
       run: echo "ARTIFACT_NAME=test-recipe-report_${{ github.event.pull_request.head.sha }}_${{ github.run_attempt }}" >> $GITHUB_OUTPUT
