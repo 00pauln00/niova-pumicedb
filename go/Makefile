@@ -27,6 +27,7 @@ niovakv:
 covidapp:
 	go build ${ASAN_LDFLAGS} -o libexec/covid_app_server apps/covid19APP/server/covid_app_server.go
 	go build ${ASAN_LDFLAGS} -o libexec/covid_app_client apps/covid19APP/client/covid_app_client.go
+	cp apps/covid19APP/client/vaccinations.csv libexec/
 
 foodpalaceapp:
 	go build ${ASAN_LDFLAGS} -o libexec/foodpalaceappserver apps/foodpalaceAPP/server/foodpalaceappServer.go
@@ -43,6 +44,7 @@ install:
 	cp libexec/nkvc ${DIR}/libexec/niova/
 	cp libexec/covid_app_server ${DIR}/libexec/niova/
 	cp libexec/covid_app_client ${DIR}/libexec/niova/
+	cp libexec/vaccinations.csv ${DIR}/libexec/niova/
 	cp libexec/foodpalaceappserver ${DIR}/libexec/niova/
 	cp libexec/foodpalaceappclient ${DIR}/libexec/niova/
 	cp libexec/LeaseApp_pmdbServer ${DIR}/libexec/niova/
