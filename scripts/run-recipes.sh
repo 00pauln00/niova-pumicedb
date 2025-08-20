@@ -23,6 +23,7 @@ while IFS= read -r line; do
 done <$RECIPE_FILE
 for recipe in "${recipe_list[@]}"
 do
+   SECONDS=0
    if [ $# -eq 7 ]
    then
       GO_PATH=${7}
@@ -44,7 +45,8 @@ do
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE -e coalesced_wr=$ENABLE_COALESCED_WR -e sync=$ENABLE_SYNC holon.yml
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE -e coalesced_wr=$ENABLE_COALESCED_WR -e sync=$ENABLE_SYNC holon.yml
    fi
-
+   duration=$SECONDS
+   echo "$recipe took $duration seconds "
    if [ $? -ne 0 ]
    then
       echo "Recipe: $recipe failed"

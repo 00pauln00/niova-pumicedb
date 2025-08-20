@@ -68,7 +68,7 @@ func (co LeaseClient) write(obj *[]byte, rncui string,
 		Response:    response,
 	}
 
-	return co.PmdbClientObj.PutEncodedAndGetResponse(reqArgs)
+	return co.PmdbClientObj.PutEncoded(reqArgs)
 }
 
 /*
