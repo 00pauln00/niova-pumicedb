@@ -17,7 +17,6 @@ export CGO_LDFLAGS="-L$BIN_PATH/lib"
 export CGO_CFLAGS="-I$BIN_PATH/include/niova"
 export LD_LIBRARY_PATH="$BIN_PATH/lib"
 export PATH="$PATH:$GO_PATH"
-touch timefl
 
 while IFS= read -r line; do
    recipe_list+=("$line")
