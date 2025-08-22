@@ -117,28 +117,25 @@ func (pco *PmdbClientObj) Put(ra *PmdbReqArgs) (unsafe.Pointer, error) {
 	return pco.put(ra.Rncui, ekey, len, getResC, ra.ReplySize)
 }
 
-/*
-* PutEncoded allows client to pass an already encoded object for writing
- */
-func (pco *PmdbClientObj) PutEncoded(ra *PmdbReqArgs) (unsafe.Pointer, error) {
-	//Convert it to unsafe pointer (void * for C function)
-	eData := unsafe.Pointer(&ra.ReqByteArr[0])
-	len := int64(len(ra.ReqByteArr))
-	eReq := (*C.char)(eData)
-	getResC := (C.int)(ra.GetResponse)
 
-	return pco.put(ra.Rncui, eReq, len, getResC, ra.ReplySize)
-}
-
-func (pco *PmdbClientObj) PutEncodedAndGetResponse(ra *PmdbReqArgs) error {
+func (pco *PmdbClientObj) PutEncoded(ra *PmdbReqArgs) error {
 	var replySize int64
 	var wr_err error
 	var replyB unsafe.Pointer
 
-	replyB, wr_err = pco.PutEncoded(ra)
+
+	rp := unsafe.Pointer(&ra.ReqByteArr[0])
+	rqPtr := (*C.char)(rp)
+	rqLen := int64(len(ra.ReqByteArr))
+	rsBool := (C.int)(ra.GetResponse)
+
+	replyB, wr_err = pco.put(ra.Rncui, rqPtr,
+		rqLen, rsBool, &replySize)
 	if wr_err != nil {
 		return wr_err
 	}
+
+
 
 	if replyB != nil {
 		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
