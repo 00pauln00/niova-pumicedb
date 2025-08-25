@@ -41,6 +41,11 @@ type PumiceRequest struct {
 	ReqPayload []byte
 }
 
+type GossipInfo struct {
+	IPAddr []string `yaml:"ipaddr"`
+	Ports  []uint16 `yaml:"ports"`
+}
+
 const (
 	APP_REQ     int = 0
 	LEASE_REQ       = 1
