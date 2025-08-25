@@ -3,13 +3,14 @@ package httpserver
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type HTTPServerHandler struct {
@@ -18,8 +19,8 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
-	ReadFuncHandler	    func(string, []byte, *[]byte) error
-	WriteFuncHandler    func(string, string, []byte, *[]byte) error
+	ReadHandler         func(string, []byte, *[]byte) error
+	WriteHandler        func(string, string, []byte, *[]byte) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -180,12 +181,12 @@ func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, re
 	name := reader.URL.Query().Get("name")
 	rncui := reader.URL.Query().Get("rncui")
 	var response []byte
-	
+
 	switch reader.Method {
 	case "GET":
-		err = handler.ReadFuncHandler(name, body, &response)
+		err = handler.ReadHandler(name, body, &response)
 	case "PUT":
-		err = handler.WriteFuncHandler(name, rncui, body, &response)
+		err = handler.WriteHandler(name, rncui, body, &response)
 	}
 	if err != nil {
 		log.Error("Error in FuncHandler: ", err)
@@ -208,7 +209,7 @@ func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, re
 	}
 }
 
-//HTTP server handler called when request is received
+// HTTP server handler called when request is received
 func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *http.Request) {
 	if reader.URL.Path == "/config" {
 		handler.configHandler(writer, reader)
@@ -259,7 +260,7 @@ func (handler *HTTPServerHandler) Start_HTTPListener() (net.Listener, error) {
 	return nil, nil
 }
 
-//Start server
+// Start server
 func (handler *HTTPServerHandler) Start_HTTPServer() error {
 	handler.connectionLimiter = make(chan int, handler.HTTPConnectionLimit)
 	handler.HTTPServer = http.Server{}
@@ -280,7 +281,7 @@ func (handler *HTTPServerHandler) Start_HTTPServer() error {
 	return err
 }
 
-//Close server
+// Close server
 func (h HTTPServerHandler) Stop_HTTPServer() error {
 	err := h.HTTPServer.Close()
 	return err
