@@ -134,13 +134,6 @@ func (lh *LeaseClientReqHandler) LeaseOperation() error {
 	var err error
 	var b []byte
 
-	// get leader info
-	leaderUuid, err := lh.LeaseClientObj.PmdbClientObj.PmdbGetLeader()
-	for err != nil {
-		leaderUuid, err = lh.LeaseClientObj.PmdbClientObj.PmdbGetLeader()
-	}
-	log.Info("Leader uuid before get op: ", leaderUuid.String())
-
 	// Prepare reqBytes for pumiceReq type
 	err = lh.preparePumiceReq()
 	if err != nil {
