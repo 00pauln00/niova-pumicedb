@@ -2,33 +2,34 @@ package httpclient
 
 import (
 	"bytes"
-	"errors"
-	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
-func service_Request(request *http.Request) ([]byte, error) {
+func ServiceRequest(req *http.Request) ([]byte, error) {
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	request.Header.Set("Content-Type", "application/json; charset=utf-8")
-	httpClient := &http.Client{}
-
-	response, err := httpClient.Do(request)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("(HTTP CLIENT DO)", err)
-		return nil, err
+		return nil, fmt.Errorf("http client request failure: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	switch response.StatusCode {
-	case 200:
-		//Serviced
-		defer response.Body.Close()
-		return ioutil.ReadAll(response.Body)
-	case 503:
-		//Service not found, returned for timeout
-		return nil, errors.New("Server timed out")
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return body, nil
 	}
-	return nil, nil
+
+	// Everything else is an error
+	return nil, fmt.Errorf("http error: status %d, body: %s", resp.StatusCode, body)
 }
 
 func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) {
@@ -45,5 +46,5 @@ func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) 
 		log.Error(err)
 		return nil, err
 	}
-	return service_Request(request)
+	return ServiceRequest(request)
 }
