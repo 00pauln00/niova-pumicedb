@@ -29,7 +29,7 @@ func ServiceRequest(req *http.Request) ([]byte, error) {
 	}
 
 	// Everything else is an error
-	return nil, fmt.Errorf("http error: status %d, body: %s", resp.StatusCode, body)
+	return nil, fmt.Errorf("http error: status %d, body: %s", resp.StatusCode, string(body))
 }
 
 func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) {
