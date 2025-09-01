@@ -82,7 +82,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       ref: failover_recipes_fix
+       ref: controlplane_lease_fixes
        path: ./holon
 
     - name: Copy holon repo
