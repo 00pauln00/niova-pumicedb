@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-var ttlDefault = 5
+var ttlDefault = 15
 var gcTimeout = 35
 
 const MAX_SINGLE_GC_REQ = 100

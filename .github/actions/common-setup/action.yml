@@ -96,7 +96,6 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       ref: failover_recipes_fix
        path: ./holon
 
     - name: Copy holon repo

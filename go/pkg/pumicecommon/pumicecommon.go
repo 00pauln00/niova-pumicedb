@@ -41,14 +41,19 @@ type PumiceRequest struct {
 	ReqPayload []byte
 }
 
+type GossipInfo struct {
+	IPAddr []string `yaml:"ipaddr"`
+	Ports  []uint16 `yaml:"ports"`
+}
+
 const (
 	APP_REQ     int = 0
 	LEASE_REQ       = 1
 	LOOKOUT_REQ     = 2
-	FUNC_REQ	  	= 3
+	FUNC_REQ        = 3
 )
 
-//Func for initializing the logger
+// Func for initializing the logger
 func InitLogger(logPath string) error {
 
 	// Split logpath name.
@@ -82,7 +87,7 @@ func InitLogger(logPath string) error {
 	return err
 }
 
-//emit code coverage data to the path file if it exists
+// emit code coverage data to the path file if it exists
 func EmitCoverData(path string) {
 	log.Info("Writing code coverage data to : ", path)
 	if err := coverage.WriteMetaDir(path); err != nil {
@@ -109,7 +114,22 @@ func HandleKillSignal() {
 	}()
 }
 
-//Encode the data passed as interface and return the unsafe.Pointer
+func GobDecode(payload []byte, s interface{}) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(payload))
+	return dec.Decode(s)
+}
+
+func GobEncode(s interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(s)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// Encode the data passed as interface and return the unsafe.Pointer
 // to the encoded data. Also return length of the encoded data.
 func Encode(ed interface{}, data_len *int64) (unsafe.Pointer, error) {
 	//Byte array
@@ -140,7 +160,7 @@ func GetStructSize(ed interface{}) int64 {
 	return struct_size
 }
 
-//Decode the data in user specific structure.
+// Decode the data in user specific structure.
 func Decode(input unsafe.Pointer, output interface{},
 	data_len int64) error {
 
@@ -160,7 +180,7 @@ func Decode(input unsafe.Pointer, output interface{},
 	return nil
 }
 
-//Prepare PumiceRequest for application reqest type APP_REQ
+// Prepare PumiceRequest for application reqest type APP_REQ
 func PrepareAppPumiceRequest(appRequest interface{}, rncui string, requestBytes *bytes.Buffer) error {
 	var b bytes.Buffer
 	var rqo PumiceRequest
