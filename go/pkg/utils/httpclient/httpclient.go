@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func ServiceRequest(req *http.Request) ([]byte, error) {
+func serviceRequest(req *http.Request) ([]byte, error) {
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	client := &http.Client{}
@@ -46,5 +46,5 @@ func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) 
 		log.Error(err)
 		return nil, err
 	}
-	return ServiceRequest(request)
+	return serviceRequest(request)
 }
