@@ -96,6 +96,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
+       ref: covid_app_recipe_fixes
        path: ./holon
 
     - name: Copy holon repo
