@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common"
-	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
+	pmsvr "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -69,7 +69,7 @@ func copyResultToBuffer(r interface{}, buf unsafe.Pointer, bufsz int) int64 {
 		return -1
 	}
 
-	size, err := PumiceDBServer.PmdbCopyBytesToBuffer(r.([]byte), buf)
+	size, err := pmsvr.PmdbCopyBytesToBuffer(r.([]byte), buf)
 	if err != nil {
 		log.Error("Failed to copy data to buffer: ", err)
 		return -1
@@ -78,7 +78,7 @@ func copyResultToBuffer(r interface{}, buf unsafe.Pointer, bufsz int) int64 {
 	return size
 }
 
-func (fs *FuncServer) WritePrep(wpa *PumiceDBServer.PmdbCbArgs) int64 {
+func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 	r, err := decode(wpa.Payload)
 	if err != nil {
 		log.Error("Failed to decode write prep request: ", err)
@@ -107,7 +107,7 @@ error:
 	return -1
 }
 
-func (fs *FuncServer) Apply(apar *PumiceDBServer.PmdbCbArgs) int64 {
+func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 	log.Info("Apply request received in FuncServer")
 
 	//Get the function to be executed
@@ -145,7 +145,7 @@ out:
 	return size
 }
 
-func (fs *FuncServer) Read(rda *PumiceDBServer.PmdbCbArgs) int64 {
+func (fs *FuncServer) Read(rda *pmsvr.PmdbCbArgs) int64 {
 	// Implement the read logic here
 	r, err := decode(rda.Payload)
 	if err != nil {
@@ -167,6 +167,6 @@ func (fs *FuncServer) Read(rda *PumiceDBServer.PmdbCbArgs) int64 {
 	return -1
 }
 
-func (nso *FuncServer) Init(ipa *PumiceDBServer.PmdbCbArgs) {
+func (nso *FuncServer) Init(ipa *pmsvr.PmdbCbArgs) {
 	return
 }
