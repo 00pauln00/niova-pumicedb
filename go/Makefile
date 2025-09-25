@@ -38,6 +38,10 @@ leaseApp:
 	go build ${ASAN_LDFLAGS} -o libexec/leaseClient apps/leaseApp/client/leaseClient.go
 
 
+perfApp:
+	go build -o libexec/perfserver apps/perf/server/perfserver.go
+	go build -o libexec/perfclient apps/perf/client/perfclient.go
+
 install:
 	cp libexec/NKV_pmdbServer ${DIR}/libexec/niova/
 	cp libexec/NKV_proxy ${DIR}/libexec/niova/
