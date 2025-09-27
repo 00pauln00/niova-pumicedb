@@ -957,7 +957,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
         obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
     {
         raft_client_net_request_handle_error_set(rncr, -EALREADY, 0, 0);
-        SIMPLE_LOG_MSG(LL_WARN, "less rncui");
+        SIMPLE_LOG_MSG(LL_DEBUG, "rncui seqno < pmdb_obj_commit_seqno");
     }
     else if ((pmdb_req->pmdbrm_write_seqno == obj.pmdb_obj_commit_seqno) &&
             (obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY))
