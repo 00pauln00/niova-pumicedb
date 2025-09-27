@@ -2,9 +2,7 @@ package main
 
 import (
 	"flag"
-	//"fmt"
-	//"os"
-
+	"fmt"
 	//perflib "github.com/00pauln00/niova-pumicedb/go/apps/perf/lib"
 	pumiceserver "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 
@@ -27,6 +25,7 @@ type PerfServer struct {
 	raftUuid       string
 	peerUuid       string
 	columnFamilies string
+	coalesced	   bool
 	pso            *pumiceserver.PmdbServerObject
 }
 
@@ -35,6 +34,7 @@ func parseArgs() *PerfServer {
 
 	flag.StringVar(&pfo.raftUuid, "r", "NULL", "raft uuid")
 	flag.StringVar(&pfo.peerUuid, "u", "NULL", "peer uuid")
+	flag.BoolVar(&pfo.coalesced, "c", false, "Enable coalesced writes")
 	flag.Parse()
 
 	return pfo
@@ -52,7 +52,7 @@ func main() {
 		RaftUuid:       pfo.raftUuid,
 		PeerUuid:       pfo.peerUuid,
 		PmdbAPI:        pfo,
-		CoalescedWrite: false,
+		CoalescedWrite: pfo.coalesced,
 	}
 
 	// Start the pmdb server
@@ -68,17 +68,21 @@ func (pfo *PerfServer) Init(initArgs *pumiceserver.PmdbCbArgs) {
 }
 
 func (pfo *PerfServer) WritePrep(wrPrepArgs *pumiceserver.PmdbCbArgs) int64 {
+	fmt.Println("Apply called")
 	return 0
 }
 
 func (pfo *PerfServer) Apply(applyArgs *pumiceserver.PmdbCbArgs) int64 {
+	fmt.Println("Apply called")
 	return 0
 }
 
 func (pfo *PerfServer) Read(readArgs *pumiceserver.PmdbCbArgs) int64 {
+	fmt.Println("Read called")
 	return 0
 }
 
 func (pfo *PerfServer) FillReply(applyArgs *pumiceserver.PmdbCbArgs) int64 {
+	fmt.Println("FR called")
 	return 0
 }

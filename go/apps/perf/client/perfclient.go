@@ -1,24 +1,31 @@
 package main
 
 import (
-	"bytes"
 	//"encoding/csv"
-	"encoding/gob"
-	//"encoding/json"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/google/uuid"
-	//log "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"strconv"
+	"path/filepath"
 	"time"
 	"math/rand"
-	"os"
+	"strings"
+	"math"
+	"sort"
 	"sync"
+	"os"
 
 	pumiceclient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
 	perflib "github.com/00pauln00/niova-pumicedb/go/apps/perf/lib"
 
 	//PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+)
+
+const (
+	KVREAD = iota
+	KVWRITE
 )
 
 type metric struct {
@@ -31,13 +38,31 @@ type metric struct {
 
 type PerfClient struct {
 	raftUUID      string
-	//workload	  int
+	workload	  int
 	queueDepth	  int
 	kvsize		  int
 	testTime	  int
+	expname		  string
 	writeCount    uint64
+	initLeader	  string
+	initTerm	  string
+	peers		  []string
 	metricCh	  chan metric
-	pco			  pumiceclient.PmdbClientObj
+	pco			  *pumiceclient.PmdbClientObj
+	metricWG	  sync.WaitGroup
+	configdir	  string
+	ctldir		  string
+}
+
+func parseWorkload(w string) int {
+	switch w {
+	case "w":
+		return KVWRITE
+	case "r":
+		return KVREAD
+	}
+	log.Fatal("Provide acception options for worload (Read - r/ Write - w)")
+	return 0
 }
 
 func parseKVSize(s string) int {
@@ -60,8 +85,7 @@ func parseKVSize(s string) int {
 	// Convert the numeric part
 	value, err := strconv.Atoi(s)
 	if err != nil {
-		fmt.Println("invalid kvsize: %v", err)
-		os.Exit(-1)
+		log.Fatalf("invalid kvsize: %v", err)
 	}
 
 	return value * multiplier
@@ -71,18 +95,23 @@ func parseKVSize(s string) int {
 func parseArgs() PerfClient {
 	var pfo PerfClient
 	var kvsize string
+	var workload string
 	flag.StringVar(&pfo.raftUUID, "r", "NULL", "raft uuid")
 	flag.StringVar(&kvsize, "s", "10", "KV size per operation(bytes)")
 	flag.IntVar(&pfo.testTime, "t", 5, "Test duration in seconds")
 	flag.IntVar(&pfo.queueDepth, "q", 1, "Queue depth (concurrent ops)")
+	flag.StringVar(&workload, "w", "r", "Workload type (read/write)")
+	flag.StringVar(&pfo.expname, "n", "job", "Experiment name")
 	flag.Parse()
 	pfo.kvsize = parseKVSize(kvsize)
+	pfo.workload = parseWorkload(workload)
 
-
+	fmt.Printf("Exp name : %s\n", pfo.expname)
 	fmt.Printf("RaftUUID   : %s\n", pfo.raftUUID)
 	fmt.Printf("KVSize     : %d Bytes\n", pfo.kvsize)
 	fmt.Printf("TestTime   : %d sec\n", pfo.testTime)
 	fmt.Printf("QueueDepth : %d\n", pfo.queueDepth)
+	fmt.Printf("Workload : %s\n", workload)
 	
 	return pfo
 }
@@ -95,34 +124,44 @@ func main() {
 	clientUUID := uuid.New().String()
 	fmt.Println("Raft uuid : ", pfo.raftUUID)
 	fmt.Println("Client UUID : ", clientUUID)
-	clientObj := pumiceclient.PmdbClientNew(pfo.raftUUID, clientUUID)
-	if clientObj == nil {
+	pfo.pco = pumiceclient.PmdbClientNew(pfo.raftUUID, clientUUID)
+	if pfo.pco == nil {
 		return
 	}
 
 	//Start the pumice client
-	clientObj.Start()
-	defer clientObj.Stop()
+	err := pfo.pco.Start()
+	if err != nil {
+		log.Fatal("Client err : ", err)
+	}
+
+	defer pfo.pco.Stop()
 
 
 	//Start the experiment
 	pfo.setup()
 	pfo.run()
+	pfo.metricWG.Wait()
 }
 
 
 func (pfo *PerfClient) metricsHandler() {
-	var totalData int
-	var totalOp int
-	var totalLatency time.Duration
-	var firstSubmission, lastCompletion time.Time
+	defer pfo.metricWG.Done()
+	var (
+		totalData      int
+		totalOp        int
+		totalLatency   time.Duration
+		firstSubmission, lastCompletion time.Time
+		latencies      []time.Duration
+	)
 
 	for data := range pfo.metricCh {
-		
 		latency := data.completionTime.Sub(data.submissionTime)
+
 		totalOp++
 		totalData += data.appDataSize
 		totalLatency += latency
+		latencies = append(latencies, latency)
 
 		if totalOp == 1 {
 			firstSubmission = data.submissionTime
@@ -135,33 +174,198 @@ func (pfo *PerfClient) metricsHandler() {
 		return
 	}
 
+	// Sort latencies
+	sort.Slice(latencies, func(i, j int) bool {
+		return latencies[i] < latencies[j]
+	})
+
+	// 99th percentile
+	p99Idx := int(math.Ceil(0.99*float64(totalOp))) - 1
+	if p99Idx < 0 {
+		p99Idx = 0
+	}
+	if p99Idx >= len(latencies) {
+		p99Idx = len(latencies) - 1
+	}
+	p99Latency := latencies[p99Idx]
+
 	// Averages
 	avgLatency := totalLatency / time.Duration(totalOp)
 
-	// Avg IOPS = total operations / total elapsed time (seconds)
+	// Avg IOPS
 	totalDuration := lastCompletion.Sub(firstSubmission).Seconds()
 	avgIOPS := float64(totalOp) / totalDuration
 
-	// Avg bandwidth = total data / total elapsed time (bytes/sec)
+	// Avg bandwidth
 	avgBW := float64(totalData) / totalDuration
 
-	fmt.Printf("Avg latency: %v\n", avgLatency)
-	fmt.Printf("Avg IOPS   : %.2f ops/sec\n", avgIOPS)
-	fmt.Printf("Avg BW     : %.2f bytes/sec\n", avgBW)
+
+	// Do ctl query of leader and term
+	q := []string{"leader-uuid", "term"}
+	lt := pfo.doctl(q,pfo.peers[0])
+	fmt.Println("Leader and term", lt)
+
+	// Struct for JSON (latencies in microseconds)
+	results := struct {
+		TotalOps    int     `json:"total_ops"`
+		TotalData   int     `json:"total_data_bytes"`
+		AvgLatency  int64   `json:"avg_latency_us"`
+		P99Latency  int64   `json:"p99_latency_us"`
+		AvgIOPS     float64 `json:"avg_iops"`
+		AvgBW       float64 `json:"avg_bandwidth_bytes_per_sec"`
+		FinalLeader string	`json:"final_leader"`
+		FinalTerm	string	`json:"final_term"`
+		InitLeader	string	`json:"init_leader"`
+		InitTerm	string	`json:"init_term"`
+	}{
+		TotalOps:   totalOp,
+		TotalData:  totalData,
+		AvgLatency: avgLatency.Microseconds(),
+		P99Latency: p99Latency.Microseconds(),
+		AvgIOPS:    avgIOPS,
+		AvgBW:      avgBW,
+		FinalLeader: lt[0],
+		FinalTerm: lt[1],
+		InitLeader: pfo.initLeader,
+		InitTerm: pfo.initTerm,
+	}
+
+	// Encode to JSON
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		log.Fatalf("failed to marshal metrics: %v", err)
+	}
+
+	file, err := os.Create(pfo.expname+".json")
+	if err != nil {
+		log.Fatalf("failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	if _, err := file.Write(data); err != nil {
+		log.Fatalf("failed to write file: %v", err)
+	}
 }
+
+
+// Struct for decoding JSON response
+type raftResponse struct {
+	RaftRootEntry []map[string]interface{} `json:"raft_root_entry"`
+}
+
+func (pfo *PerfClient) doctl(queries []string, peer string) []string {
+	// Ensure randomness for filenames
+	rand.Seed(time.Now().UnixNano())
+	randomName := fmt.Sprintf("out_%d", rand.Int63())
+	var op []string
+
+	// Construct input/output paths
+	inputDir := filepath.Join(pfo.ctldir, peer, "input")
+	outputDir := filepath.Join(pfo.ctldir, peer, "output")
+	if err := os.MkdirAll(inputDir, 0755); err != nil {
+		fmt.Printf("failed to create input dir: %v\n", err)
+		return op
+	}
+
+	// Write input request file
+	inFilePath := filepath.Join(inputDir, randomName)
+	content := fmt.Sprintf("GET /raft_root_entry/.*/.*\nOUTFILE /%s\n", randomName)
+	if err := os.WriteFile(inFilePath, []byte(content), 0644); err != nil {
+		fmt.Printf("failed to write ctl file: %v\n", err)
+		return op
+	}
+
+	// Path to wait for
+	outFilePath := filepath.Join(outputDir, randomName)
+
+	// Wait for output file to appear (with timeout)
+	var data []byte
+	timeout := time.After(5 * time.Second) // configurable
+	for {
+		select {
+		case <-timeout:
+			fmt.Printf("timeout waiting for output file %s\n", outFilePath)
+			return op
+		default:
+			if _, err := os.Stat(outFilePath); err == nil {
+				// File exists, read it
+				var readErr error
+				data, readErr = os.ReadFile(outFilePath)
+				if readErr != nil {
+					fmt.Printf("failed to read output file: %v\n", readErr)
+					return op
+				}
+				goto PARSE
+			}
+			time.Sleep(100 * time.Millisecond) // polling interval
+		}
+	}
+
+PARSE:
+	// Parse JSON
+	var resp raftResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		fmt.Printf("failed to parse JSON: %v\n", err)
+		return op
+	}
+
+	for _, q := range queries {
+		if len(resp.RaftRootEntry) > 0 {
+			if val, ok := resp.RaftRootEntry[0][q]; ok {
+				// Convert any type to string safely
+				op = append(op, fmt.Sprintf("%v", val))
+			}
+		}
+	}
+
+	return op
+}
+
 
 func (pfo *PerfClient) setup() {
 	//Initialize everything
+	pfo.configdir = os.Getenv("NIOVA_LOCAL_CTL_SVC_DIR")
+	pfo.ctldir = os.Getenv("NIOVA_INOTIFY_BASE_PATH")
+	if pfo.configdir == "" || pfo.ctldir == ""{
+		log.Fatal("Config/CTL dir not set")
+	}
+	// Walk the directory and collect UUIDs from *.peer files
+	err := filepath.Walk(pfo.configdir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".peer") {
+			// Strip ".peer" suffix to get the UUID
+			uuid := strings.TrimSuffix(info.Name(), ".peer")
+			pfo.peers = append(pfo.peers, uuid)
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal("Unable to fetch peer uuids")
+	}
+
+	// Do a ctl interface request to get leader and term value
+	q := []string{"leader-uuid", "term"}
+	lt := pfo.doctl(q,pfo.peers[0])
+	fmt.Println("Leader, term", lt)
+	pfo.initLeader = lt[0]
+	pfo.initTerm = lt[1]
+
 	pfo.metricCh = make(chan metric, 1024)
+	pfo.metricWG.Add(1)
 	go pfo.metricsHandler()
 }
 
 
 
-func (pfo *PerfClient) runner(rncui string) {
+func (pfo *PerfClient) runner() {
 	st := time.Now()
 
 	//Create a request
+	rncui := uuid.New().String() + ":0:0:0:0"
 	b := make([]byte, pfo.kvsize)
 	rand.Read(b) 
 
@@ -170,25 +374,33 @@ func (pfo *PerfClient) runner(rncui string) {
 		Value: b[pfo.kvsize/2:],
 	}
 
-	var data bytes.Buffer
-	enc := gob.NewEncoder(&data)
-	enc.Encode(ar)
-
 	var replySize int64
 	var response []byte
 	pr := &pumiceclient.PmdbReqArgs{
 		Rncui:       rncui,
-		ReqED:       data.Bytes(),
+		ReqED:       ar,
 		GetResponse: 1,
 		ReplySize:   &replySize,
 		Response:    &response,
+		ResponseED: &ar,
 	}
 
 	//Send and wait
+	//var err error
 	rt := time.Now()
-	pfo.pco.Put(pr)
+	var err error
+	switch pfo.workload {
+	case KVWRITE:
+		_, err = pfo.pco.Put(pr)
+	case KVREAD:
+		err = pfo.pco.Get(pr)
+	}
 	ct := time.Now()
 
+	if err != nil {
+		return
+	}
+	
 	//Put stats to the metric handler
 	m := metric{
 		startTime : st,
@@ -201,7 +413,6 @@ func (pfo *PerfClient) runner(rncui string) {
 
 func (pfo *PerfClient) run() {
 	qdlimiter := make(chan int, pfo.queueDepth)
-	rncui := uuid.New().String() + ":0:0:0:"
 	duration := time.Duration(pfo.testTime) * time.Second
 	start := time.Now()
 
@@ -210,12 +421,11 @@ func (pfo *PerfClient) run() {
 	for time.Since(start) < duration {
 		wg.Add(1)
 		qdlimiter <- 1
-		go func(id string) {
+		go func() {
 			defer wg.Done()
 			defer func() { <-qdlimiter }()
-			pfo.runner(id)
-		}(rncui + strconv.FormatUint(pfo.writeCount, 10))
-		pfo.writeCount++
+			pfo.runner()
+		}()
 	}
 
 	// Wait for all goroutines to complete
