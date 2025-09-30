@@ -90,6 +90,14 @@ type PmdbLeaderTS struct {
 	Time int64
 }
 
+type RangeReadResult struct {
+	ResultMap    map[string][]byte
+	LastKey      string
+	SeqNum       uint64
+	SnapshotMiss bool
+	Error        error
+}
+
 const (
 	INIT_TYPE_NONE                int = 0
 	INIT_BOOTUP_STATE                 = 1
@@ -676,16 +684,18 @@ func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
 }
 
 func RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (map[string][]byte, string, uint64, bool, error) {
-
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) RangeReadResult {
+	var res RangeReadResult
+	res.ResultMap, res.LastKey, res.SeqNum, res.SnapshotMiss, res.Error = pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
+	return res
 }
 
 // Public method for range read KV
 func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (map[string][]byte, string, uint64, bool, error) {
-
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) RangeReadResult {
+	var res RangeReadResult
+	res.ResultMap, res.LastKey, res.SeqNum, res.SnapshotMiss, res.Error = pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
+	return res
 }
 
 func PmdbCopyBytesToBuffer(ed []byte,
