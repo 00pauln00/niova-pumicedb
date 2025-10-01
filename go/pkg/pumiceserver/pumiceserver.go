@@ -91,11 +91,10 @@ type PmdbLeaderTS struct {
 }
 
 type RangeReadResult struct {
-	ResultMap    map[string][]byte
-	LastKey      string
-	SeqNum       uint64
-	SnapshotMiss bool
-	Error        error
+	ResultMap map[string][]byte
+	LastKey   string
+	SeqNum    uint64
+	SnapMiss  bool
 }
 
 const (
@@ -610,19 +609,22 @@ func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map
 }
 
 func pmdbFetchRange(key string, key_len int64,
-	prefix string, bufSize int64, consistent bool, seqNum uint64, go_cf string) (map[string][]byte, string, uint64, bool, error) {
+	prefix string, bufSize int64, consistent bool, seq uint64, go_cf string) (*RangeReadResult, error) {
 	var lookup_err error
-	var resultMap = make(map[string][]byte)
+	res := &RangeReadResult{
+		ResultMap: make(map[string][]byte),
+		SeqNum:    seq,
+	}
 	var mapSize int
-	var lastKey string
 	var itr *C.rocksdb_iterator_t
+	var ropts *C.rocksdb_readoptions_t
 	var endReached bool
 
 	log.Trace("RangeQuery - Key passed is: ", key, " Prefix passed is : ", prefix,
-		" Seq No passed is : ", seqNum)
+		" Seq No passed is : ", res.SeqNum)
 
 	//Create ropts based on consistency and seqNum
-	ropts, snapMiss := createRopts(consistent, &seqNum)
+	ropts, res.SnapMiss = createRopts(consistent, &res.SeqNum)
 
 	// create iterator
 	cf := GoToCString(go_cf)
@@ -647,11 +649,11 @@ func pmdbFetchRange(key string, key_len int64,
 		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
 		if (int64(mapSize) + int64(entrySize)) > bufSize {
 			log.Trace("RangeQuery -  Reply buffer is full - dumping map to client")
-			lastKey = fKey
+			res.LastKey = fKey
 			break
 		}
 		mapSize = mapSize + entrySize + encodingOverhead
-		resultMap[fKey] = fVal
+		res.ResultMap[fKey] = fVal
 
 		C.rocksdb_iter_next(itr)
 	}
@@ -659,21 +661,21 @@ func pmdbFetchRange(key string, key_len int64,
 	//Destroy ropts for consistent mode only when reached the end of the range query
 	//Wheras, destroy ropts in every iteration if the range query is not consistent
 	if C.rocksdb_iter_valid(itr) == 0 || endReached == true {
-		destroyRopts(seqNum, ropts, consistent)
+		destroyRopts(res.SeqNum, ropts, consistent)
 	} else if !consistent {
-		destroyRopts(seqNum, ropts, consistent)
+		destroyRopts(res.SeqNum, ropts, consistent)
 	}
 
 	//Free the iterator and memory
 	C.rocksdb_iter_destroy(itr)
 	FreeCMem(cf)
 
-	if len(resultMap) == 0 {
+	if len(res.ResultMap) == 0 {
 		lookup_err = errors.New("Failed to lookup for key")
 	} else {
 		lookup_err = nil
 	}
-	return resultMap, lastKey, seqNum, snapMiss, lookup_err
+	return res, lookup_err
 }
 
 // Public method for read all KV from the column family
@@ -684,18 +686,14 @@ func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
 }
 
 func RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) RangeReadResult {
-	var res RangeReadResult
-	res.ResultMap, res.LastKey, res.SeqNum, res.SnapshotMiss, res.Error = pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
-	return res
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
+	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
 // Public method for range read KV
 func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) RangeReadResult {
-	var res RangeReadResult
-	res.ResultMap, res.LastKey, res.SeqNum, res.SnapshotMiss, res.Error = pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
-	return res
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
+	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
 func PmdbCopyBytesToBuffer(ed []byte,
