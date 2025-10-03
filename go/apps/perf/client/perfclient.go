@@ -52,6 +52,7 @@ type PerfClient struct {
 	metricWG	  sync.WaitGroup
 	configdir	  string
 	ctldir		  string
+	clientUUID	  string
 }
 
 func parseWorkload(w string) int {
@@ -102,6 +103,7 @@ func parseArgs() PerfClient {
 	flag.IntVar(&pfo.queueDepth, "q", 1, "Queue depth (concurrent ops)")
 	flag.StringVar(&workload, "w", "r", "Workload type (read/write)")
 	flag.StringVar(&pfo.expname, "n", "job", "Experiment name")
+	flag.StringVar(&pfo.clientUUID, "u", "NULL", "Client UUID")
 	flag.Parse()
 	pfo.kvsize = parseKVSize(kvsize)
 	pfo.workload = parseWorkload(workload)
@@ -120,11 +122,9 @@ func main() {
 	//Parse the cmdline parameter
 	pfo := parseArgs()
 
-	//Create new client object with raftUUID and Client uuid
-	clientUUID := uuid.New().String()
 	fmt.Println("Raft uuid : ", pfo.raftUUID)
-	fmt.Println("Client UUID : ", clientUUID)
-	pfo.pco = pumiceclient.PmdbClientNew(pfo.raftUUID, clientUUID)
+	fmt.Println("Client UUID : ", pfo.clientUUID)
+	pfo.pco = pumiceclient.PmdbClientNew(pfo.raftUUID, pfo.clientUUID)
 	if pfo.pco == nil {
 		return
 	}
@@ -181,16 +181,24 @@ func (pfo *PerfClient) metricsHandler() {
 
 	// 99th percentile
 	p99Idx := int(math.Ceil(0.99*float64(totalOp))) - 1
+	p90Idx := int(math.Ceil(0.90*float64(totalOp))) - 1
+	p50Idx := int(math.Ceil(0.50*float64(totalOp))) - 1
 	if p99Idx < 0 {
 		p99Idx = 0
+		p90Idx = 0
+		p50Idx = 0
 	}
 	if p99Idx >= len(latencies) {
 		p99Idx = len(latencies) - 1
 	}
+	if p90Idx >= len(latencies) {
+		p90Idx = len(latencies) - 1
+	}
 	p99Latency := latencies[p99Idx]
-
+	p90Latency := latencies[p90Idx]
+	p50Latency := latencies[p50Idx]
 	// Averages
-	avgLatency := totalLatency / time.Duration(totalOp)
+	//avgLatency := totalLatency / time.Duration(totalOp)
 
 	// Avg IOPS
 	totalDuration := lastCompletion.Sub(firstSubmission).Seconds()
@@ -202,32 +210,41 @@ func (pfo *PerfClient) metricsHandler() {
 
 	// Do ctl query of leader and term
 	q := []string{"leader-uuid", "term"}
-	lt := pfo.doctl(q,pfo.peers[0])
+	lt := pfo.doctl(q,pfo.peers[0],"server")
 	fmt.Println("Leader and term", lt)
+	q = []string{"commit-latency-msec"}
+	cmtlat := pfo.doctl(q, lt[0],"server")
+	//clientlat := pfo.doctl(q,pfo.clientUUID,"client")
 
 	// Struct for JSON (latencies in microseconds)
 	results := struct {
 		TotalOps    int     `json:"total_ops"`
 		TotalData   int     `json:"total_data_bytes"`
-		AvgLatency  int64   `json:"avg_latency_us"`
-		P99Latency  int64   `json:"p99_latency_us"`
+		P50Latency  int64   `json:"p50_latency_ms"`
+		P99Latency  int64   `json:"p99_latency_ms"`
+		P90Latency  int64	`json:"p90_latency_ms"`
 		AvgIOPS     float64 `json:"avg_iops"`
 		AvgBW       float64 `json:"avg_bandwidth_bytes_per_sec"`
 		FinalLeader string	`json:"final_leader"`
 		FinalTerm	string	`json:"final_term"`
 		InitLeader	string	`json:"init_leader"`
 		InitTerm	string	`json:"init_term"`
+		SCommitLat	string	`json:"commit_lat_ms"`
+		CReqLat		string 	`json:"req_lat_ms"`
 	}{
 		TotalOps:   totalOp,
 		TotalData:  totalData,
-		AvgLatency: avgLatency.Microseconds(),
-		P99Latency: p99Latency.Microseconds(),
+		P50Latency: p50Latency.Milliseconds(),
+		P99Latency: p99Latency.Milliseconds(),
+		P90Latency: p90Latency.Milliseconds(),
 		AvgIOPS:    avgIOPS,
 		AvgBW:      avgBW,
 		FinalLeader: lt[0],
 		FinalTerm: lt[1],
 		InitLeader: pfo.initLeader,
 		InitTerm: pfo.initTerm,
+		SCommitLat: cmtlat[0],
+		//CReqLat: clientlat[0],
 	}
 
 	// Encode to JSON
@@ -253,8 +270,12 @@ type raftResponse struct {
 	RaftRootEntry []map[string]interface{} `json:"raft_root_entry"`
 }
 
-func (pfo *PerfClient) doctl(queries []string, peer string) []string {
+func (pfo *PerfClient) doctl(queries []string, peer string, node string) []string {
 	// Ensure randomness for filenames
+	qu := "raft_root_entry"
+	if node == "client" {
+		qu = "raft_client_root_entry"
+	}
 	rand.Seed(time.Now().UnixNano())
 	randomName := fmt.Sprintf("out_%d", rand.Int63())
 	var op []string
@@ -269,7 +290,7 @@ func (pfo *PerfClient) doctl(queries []string, peer string) []string {
 
 	// Write input request file
 	inFilePath := filepath.Join(inputDir, randomName)
-	content := fmt.Sprintf("GET /raft_root_entry/.*/.*\nOUTFILE /%s\n", randomName)
+	content := fmt.Sprintf("GET /%s/.*/.*\nOUTFILE /%s\n", qu, randomName)
 	if err := os.WriteFile(inFilePath, []byte(content), 0644); err != nil {
 		fmt.Printf("failed to write ctl file: %v\n", err)
 		return op
@@ -349,7 +370,7 @@ func (pfo *PerfClient) setup() {
 
 	// Do a ctl interface request to get leader and term value
 	q := []string{"leader-uuid", "term"}
-	lt := pfo.doctl(q,pfo.peers[0])
+	lt := pfo.doctl(q,pfo.peers[0],"server")
 	fmt.Println("Leader, term", lt)
 	pfo.initLeader = lt[0]
 	pfo.initTerm = lt[1]
