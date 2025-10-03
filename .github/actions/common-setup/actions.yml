@@ -12,6 +12,11 @@ runs:
     - name: dpkg / rpm prep
       run: sudo -E apt-get install -y uuid-dev uuid libuuid1 libgcrypt20 openssl libssl-dev `apt-cache search librocksdb | awk '{print $1}'` uncrustify libasan5 libtsan0
 
+    # Install RocksDB utilities
+    - name: Install RocksDB Utilities 
+      run: sudo apt-get install -y rocksdb-tools
+      shell: bash
+
 # Install golang
     - name: Install golang 1.20.3
       run: sudo rm -rf /usr/bin/go /bin/go &&
@@ -82,7 +87,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       ref: covid_app_recipe_fixes
+       ref: recipe/atomicity_test
        path: ./holon
 
     - name: Copy holon repo
