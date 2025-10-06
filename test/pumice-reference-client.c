@@ -24,6 +24,17 @@
 
 #define OPTS "au:r:h"
 
+// Logical command structure (must match server)
+struct logical_cmd {
+    uint32_t magic;           // Magic number for validation
+    uint32_t cmd_type;        // Command type (1 = Bulk Key Update)
+    uint32_t random_count;    // Random number (1-100) generated in write phase
+    uint32_t reserved;        // Reserved for future use
+};
+
+#define LOGICAL_CMD_MAGIC 0x12345678
+#define LOGICAL_CMD_TYPE_BULK_KEY_UPDATE  1
+
 #define PMDB_TEST_CLIENT_MAX_APPS 1024
 #define PMDB_TEST_CLIENT_REQ_HIST_SZ 1024
 
@@ -105,6 +116,7 @@ struct pmdbtc_request
     size_t                         preq_op_cnt;
     size_t                         preq_val_cnt;
     int64_t                        preq_pmdb_seqno;
+    bool                           preq_is_logical_cmd;
     STAILQ_ENTRY(pmdbtc_request)   preq_lentry;
     raft_net_request_tag_t         preq_last_tag;
     pmdb_obj_stat_t                preq_obj_stat;
@@ -413,8 +425,11 @@ pmdbtc_app_history_add(struct pmdbtc_request *preq)
 static util_thread_ctx_ctli_int_t
 pmdbtc_queue_request(const struct raft_net_client_user_id *rncui,
                      enum PmdbOpType op, size_t op_cnt,
-                     const int64_t write_seqno, size_t val_cnt)
+                     const int64_t write_seqno, size_t val_cnt, bool is_logical_cmd)
 {
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Queueing request - op=%s, op_cnt=%zu, seqno=%ld, val_cnt=%zu, is_logical_cmd=%s",
+                   pmdp_op_2_string(op), op_cnt, write_seqno, val_cnt, is_logical_cmd ? "true" : "false");
+    
     if (!rncui)
         return -EINVAL;
 
@@ -442,6 +457,7 @@ pmdbtc_queue_request(const struct raft_net_client_user_id *rncui,
     preq->preq_val_cnt = val_cnt;
     //Pending seqno.
     preq->preq_pmdb_seqno = write_seqno;
+    preq->preq_is_logical_cmd = is_logical_cmd;
 
     niova_realtime_coarse_clock(&preq->preq_submitted);
 
@@ -463,10 +479,13 @@ pmdbtc_parse_and_process_input_cmd(const char *input_cmd_str)
 
     int rc = regexec(&pmdbtcCmdRegex, input_cmd_str, 0, NULL, 0);
 
-    SIMPLE_LOG_MSG(LL_DEBUG, "input=%s (regex-rc=%d)", input_cmd_str, rc);
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: input='%s' (regex-rc=%d)", input_cmd_str, rc);
 
     if (rc)
+    {
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: regex match failed for input='%s', rc=%d", input_cmd_str, rc);
         return -EBADMSG;
+    }
 
     struct raft_net_client_user_id rncui = {0};
 
@@ -481,6 +500,8 @@ pmdbtc_parse_and_process_input_cmd(const char *input_cmd_str)
     // Set the default value to 1 to make it compatible with old holon code.
     size_t val_cnt = 1;
 
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Starting to parse command: '%s'", input_cmd_str);
+
     /* Cmd string formats:
      * <RNCUI_V0_REGEX_BASE>.<read>|<lookup>|(<write:start seqno>.<# writes>.
      * <# of values (0 = random)>)
@@ -492,46 +513,64 @@ pmdbtc_parse_and_process_input_cmd(const char *input_cmd_str)
          sub != NULL;
          sub = strtok_r(NULL, sep, &sp), pos++)
     {
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pos=%zu, sub='%s'", pos, sub);
+        
         switch (pos)
         {
         case 0:
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Parsing UUID: '%s'", sub);
             rc = raft_net_client_user_id_parse(sub, &rncui, 0);
             if (rc)
+            {
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: UUID parse failed for '%s', rc=%d", sub, rc);
                 return -EBADMSG;
+            }
 
             uuid_str = sub;
             uuid_str[UUID_STR_LEN - 1] = '\0';
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: UUID parsed successfully");
 
             break;
         case 1:
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Parsing operation: '%s'", sub);
             if (!strncmp("read", sub, 4))
             {
                 op = pmdb_op_read;
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Matched 'read' operation");
             }
             else if (!strncmp("lookup", sub, 6))
             {
                 op = pmdb_op_lookup;
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Matched 'lookup' operation");
             }
             else if (!strncmp("write:", sub, 6))
             {
                 op = pmdb_op_write;
                 write_seqno = strtoull(&sub[6], NULL, 10);
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Matched 'write' operation (logical command), seqno=%ld", write_seqno);
             }
             else
             {
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: No operation matched for '%s'", sub);
                 return -EBADMSG; // this should never happen (regex failed..)
             }
             break;
         case 2:
             op_cnt = strtoull(sub, NULL, 10);
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Parsed op_cnt=%zu", op_cnt);
             break;
         case 3:
             val_cnt = strtoull(sub, NULL, 10);
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Parsed val_cnt=%zu", val_cnt);
             break;
         default:
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Unexpected position %zu, sub='%s'", pos, sub);
             break;
         }
     }
+
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Final parsed values - op=%s, seqno=%ld, op_cnt=%zu, val_cnt=%zu",
+                   pmdp_op_2_string(op), write_seqno, op_cnt, val_cnt);
 
     SIMPLE_LOG_MSG(LL_DEBUG,
                    RAFT_NET_CLIENT_USER_ID_FMT
@@ -540,7 +579,9 @@ pmdbtc_parse_and_process_input_cmd(const char *input_cmd_str)
                    pmdp_op_2_string(op), write_seqno, rc, op_cnt, val_cnt);
 
     // Return errors here so they may be placed into the ctl-interface OUTFILE.
-    return pmdbtc_queue_request(&rncui, op, op_cnt, write_seqno, val_cnt);
+    // For write operations, always use logical command
+    bool is_logical_cmd = (op == pmdb_op_write);
+    return pmdbtc_queue_request(&rncui, op, op_cnt, write_seqno, val_cnt, is_logical_cmd);
 }
 
 static util_thread_ctx_reg_int_t
@@ -737,28 +778,28 @@ pmdbtc_write_prep(struct pmdbtc_request *preq)
     NIOVA_ASSERT(!raft_net_client_user_id_cmp(&papp->papp_rncui,
                                               &preq->preq_rncui));
 
-    uuid_copy(preq->preq_rtdb.rtdb_client_uuid,
-              RAFT_NET_CLIENT_USER_ID_2_UUID(&papp->papp_rncui, 0, 0));
-
-    preq->preq_rtdb.rtdb_op = RAFT_TEST_DATA_OP_WRITE;
-
-    const unsigned int num_values = preq->preq_val_cnt
-        ? preq->preq_val_cnt
-        : random_get() % RAFT_TEST_VALUES_MAX;
-
-    preq->preq_rtdb.rtdb_num_values = num_values;
-
-    SIMPLE_LOG_MSG(LL_TRACE, "papp %p preq %p preparing %d values",
-                   papp, preq, num_values);
-
+    // All write operations are now logical commands
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Preparing logical command - papp=%p, preq=%p, seqno=%ld",
+                   papp, preq, preq->preq_pmdb_seqno);
+    
+    // For logical commands, just tell server it's command type 1
+    // Server will handle all the logic (random number generation, key updates, etc.)
+    struct logical_cmd *logical_cmd = (struct logical_cmd *)&preq->preq_rtdb;
+    
+    logical_cmd->magic = LOGICAL_CMD_MAGIC;
+    logical_cmd->cmd_type = LOGICAL_CMD_TYPE_BULK_KEY_UPDATE;  // Just tell server it's type 1
+    logical_cmd->random_count = 0;  // Server will generate this
+    logical_cmd->reserved = 0;
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Logical command structure - magic=0x%x, cmd_type=%u, random_count=%u",
+                   logical_cmd->magic, logical_cmd->cmd_type, logical_cmd->random_count);
+    
+    // Handle sequence number for logical commands (same as regular writes)
     if (preq->preq_pmdb_seqno != papp->papp_rtv.rtv_seqno)
         pmdbtc_app_rtv_fast_forward(papp, preq->preq_pmdb_seqno);
-
-    for (uint32_t i = 0; i < preq->preq_rtdb.rtdb_num_values; i++)
-    {
-        pmdbtc_app_rtv_increment(papp);
-        preq->preq_rtv[i] = papp->papp_last_rtv_request;
-    }
+    
+    SIMPLE_LOG_MSG(LL_TRACE, "papp %p preq %p preparing logical command (seqno=%ld)",
+                   papp, preq, preq->preq_pmdb_seqno);
 }
 
 static void
@@ -930,11 +971,10 @@ pmdbtc_submit_request(struct pmdbtc_request *preq)
     case pmdb_op_write:
         pmdbtc_write_prep(preq);
 
-        size_t rqsz = (sizeof(struct raft_test_data_block) +
-                       preq->preq_rtdb.rtdb_num_values *
-                       sizeof(struct raft_test_values));
+        // All write operations now use logical command structure
+        size_t rqsz = sizeof(struct logical_cmd);
 
-        SIMPLE_LOG_MSG(LL_TRACE, "write rqsz: %lu", rqsz);
+        SIMPLE_LOG_MSG(LL_TRACE, "write rqsz: %lu (logical_cmd: yes)", rqsz);
 
         pmdb_request_options_init(&pmdb_req, 1, use_async_requests, 0,
                                   &preq->preq_obj_stat,
@@ -1006,6 +1046,7 @@ pmdbtc_init(void)
 {
     FUNC_ENTRY(LL_NOTIFY);
 
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Compiling regex pattern: '%s'", PMDB_TEST_CLIENT_APPLY_CMD_REGEX);
     int rc = regcomp(&pmdbtcCmdRegex, PMDB_TEST_CLIENT_APPLY_CMD_REGEX, 0);
     NIOVA_ASSERT(!rc);
 

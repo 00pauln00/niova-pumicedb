@@ -6,6 +6,8 @@
 
 #include <unistd.h>
 #include <uuid/uuid.h>
+#include <time.h>
+#include <stdlib.h>
 
 #include <rocksdb/c.h>
 
@@ -28,6 +30,19 @@ static bool coalescedWrites = false;
 const char *raft_uuid_str;
 const char *my_uuid_str;
 
+// Logical command structure
+struct logical_cmd {
+    uint32_t magic;           // Magic number for validation
+    uint32_t cmd_type;        // Command type (1 = Bulk Key Update)
+    uint32_t random_count;    // How many keys to process (1-100)
+    uint32_t increment_value; // How much to increment each key's value by
+};
+
+#define LOGICAL_CMD_MAGIC 0x12345678
+#define LOGICAL_CMD_TYPE_BULK_KEY_UPDATE  1
+#define MAX_KEYS 100
+#define KEY_PREFIX "key"
+
 #define PMDTS_ENTRY_KEY_LEN sizeof(struct raft_net_client_user_key_v0)
 #define PMDTS_RNCUI_2_KEY(rncui) (const char *)&(rncui)->rncui_key.v0
 
@@ -44,6 +59,119 @@ pmdbst_get_cfh(void)
     NIOVA_ASSERT(pmdbts_cfh);
 
     return pmdbts_cfh;
+}
+
+// Initialize keys 1-100 with value 0
+static void
+pmdbts_init_keys(struct pumicedb_cb_cargs *args)
+{
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_init_keys - ENTRY");
+    (void)args; // Suppress unused parameter warning
+    
+    // Note: This function is called during initialization, so we need to use
+    // direct RocksDB operations since PmdbWriteKV requires a pmdb_handle
+    // which may not be available during init phase.
+    rocksdb_column_family_handle_t *cfh = pmdbst_get_cfh();
+    char *err = NULL;
+    
+    // Initialize keys 1-100 with value 0
+    for (int i = 1; i <= MAX_KEYS; i++) {
+        char key_name[32];
+        uint64_t value = 0;
+        
+        snprintf(key_name, sizeof(key_name), "%s%d", KEY_PREFIX, i);
+        
+        // Write key with value 0 using direct RocksDB operations
+        rocksdb_writeoptions_t *write_opts = rocksdb_writeoptions_create();
+        rocksdb_put_cf(PmdbGetRocksDB(), write_opts, cfh,
+                       key_name, strlen(key_name),
+                       (const char*)&value, sizeof(value),
+                       &err);
+        
+        rocksdb_writeoptions_destroy(write_opts);
+        
+        if (err) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize key %s: %s", key_name, err);
+            // Just log the error and continue - don't return from void function
+        }
+    }
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Init - Initialized %d keys with value 0", MAX_KEYS);
+    SIMPLE_LOG_MSG(LL_NOTIFY, "Initialized %d keys with value 0", MAX_KEYS);
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_init_keys - EXIT");
+}
+
+// Write preparation function - generates random number
+static pumicedb_write_prep_ctx_ssize_t
+pmdbts_write_prep(struct pumicedb_cb_cargs *args)
+{
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_write_prep - ENTRY");
+    const void *input_buf = args->pcb_req_buf;
+    size_t input_bufsz = args->pcb_req_bufsz;
+    char *reply_buf = args->pcb_reply_buf;
+    size_t reply_bufsz = args->pcb_reply_bufsz;
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_write_prep - input_bufsz=%zu, reply_bufsz=%zu", input_bufsz, reply_bufsz);
+    
+    // Check if this is a logical command
+    if (input_bufsz >= sizeof(struct logical_cmd)) {
+        const struct logical_cmd *cmd = 
+            (const struct logical_cmd *)input_buf;
+            
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Received logical command - magic=0x%x, cmd_type=%u, random_count=%u", 
+                       cmd->magic, cmd->cmd_type, cmd->random_count);
+            
+        if (cmd->magic == LOGICAL_CMD_MAGIC && 
+            cmd->cmd_type == LOGICAL_CMD_TYPE_BULK_KEY_UPDATE) {
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Valid logical command detected, generating random count");
+            
+            // Generate two random numbers:
+            // 1. How many keys to process (1-100)
+            // 2. How much to increment each key's value by (1-1000)
+            uint32_t random_count = (rand() % MAX_KEYS) + 1;
+            uint32_t increment_value = (rand() % 1000) + 1;
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Generated random_count = %u, increment_value = %u", 
+                          random_count, increment_value);
+            
+            // Modify the input buffer to pass both values to the apply phase
+            struct logical_cmd *input_cmd = (struct logical_cmd *)input_buf;
+            input_cmd->random_count = random_count;
+            input_cmd->increment_value = increment_value;
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Modified input buffer with random_count = %u, increment_value = %u", 
+                          random_count, increment_value);
+            
+            // Create response with both random values
+            if (reply_bufsz >= sizeof(struct logical_cmd)) {
+                struct logical_cmd *reply_cmd = 
+                    (struct logical_cmd *)reply_buf;
+                    
+                reply_cmd->magic = LOGICAL_CMD_MAGIC;
+                reply_cmd->cmd_type = LOGICAL_CMD_TYPE_BULK_KEY_UPDATE;
+                reply_cmd->random_count = random_count;
+                reply_cmd->increment_value = increment_value;
+                
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Logical Command (Bulk Key Update): Generated random_count = %u, increment_value = %u", 
+                              random_count, increment_value);
+                
+                return sizeof(struct logical_cmd);
+            } else {
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Reply buffer too small for logical command response");
+            }
+        } else {
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Invalid logical command - magic=0x%x (expected 0x%x), cmd_type=%u (expected %u)", 
+                          cmd->magic, LOGICAL_CMD_MAGIC, cmd->cmd_type, LOGICAL_CMD_TYPE_BULK_KEY_UPDATE);
+        }
+    } else {
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Input buffer too small for logical command (size=%zu, required=%zu)", 
+                      input_bufsz, sizeof(struct logical_cmd));
+    }
+    
+    // Not a logical command, return 0 to continue with normal processing
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_write_prep - EXIT (returning 0 for normal processing)");
+    return 0;
 }
 
 #if 0
@@ -221,13 +349,113 @@ pmdbts_sum_incoming_rtv(const struct raft_test_data_block *rtdb_src,
 static pumicedb_apply_ctx_ssize_t
 pmdbts_apply(struct pumicedb_cb_cargs *args)
 {
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_apply - ENTRY");
 //    NIOVA_ASSERT(!pmdbst_init_rocksdb());
 
     const struct raft_net_client_user_id *app_id = args->pcb_userid;
     const void *input_buf = args->pcb_req_buf;
     size_t input_bufsz = args->pcb_req_bufsz;
     void *pmdb_handle = args->pcb_pmdb_handler;
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_apply - input_bufsz=%zu", input_bufsz);
 
+    // Check if this is a logical command
+    if (input_bufsz >= sizeof(struct logical_cmd)) {
+        const struct logical_cmd *cmd = 
+            (const struct logical_cmd *)input_buf;
+            
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Received logical command - magic=0x%x, cmd_type=%u, random_count=%u, increment_value=%u", 
+                       cmd->magic, cmd->cmd_type, cmd->random_count, cmd->increment_value);
+            
+        if (cmd->magic == LOGICAL_CMD_MAGIC && 
+            cmd->cmd_type == LOGICAL_CMD_TYPE_BULK_KEY_UPDATE) {
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Valid logical command detected, processing bulk key update");
+            
+            // Process bulk key update command using values from write_prep
+            uint32_t random_count = cmd->random_count;
+            uint32_t increment_value = cmd->increment_value;
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Using random_count = %u, increment_value = %u from write_prep", 
+                          random_count, increment_value);
+            if (random_count > MAX_KEYS) {
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Clamping random_count from %u to %u", random_count, MAX_KEYS);
+                random_count = MAX_KEYS;
+            }
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Logical Command (Bulk Key Update): Processing %u keys", random_count);
+            
+            // Read and update the first 'random_count' keys
+            for (uint32_t i = 1; i <= random_count; i++) {
+                char key_name[32];
+                uint64_t current_value = 0;
+                uint64_t new_value = 0;
+                size_t value_len = 0;
+                
+                snprintf(key_name, sizeof(key_name), "%s%u", KEY_PREFIX, i);
+                
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Processing key %s (key %u of %u)", key_name, i, random_count);
+                
+                // Read current value using direct RocksDB operations
+                rocksdb_readoptions_t *read_opts = rocksdb_readoptions_create();
+                char *err = NULL;
+                char *get_value = rocksdb_get_cf(PmdbGetRocksDB(), read_opts, 
+                                               pmdbst_get_cfh(),
+                                               key_name, strlen(key_name), 
+                                               &value_len, &err);
+                rocksdb_readoptions_destroy(read_opts);
+                
+                if (get_value && !err && value_len == sizeof(uint64_t)) {
+                    current_value = *(uint64_t*)get_value;
+                    free(get_value);
+                    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Read key %s: current_value=%lu", key_name, current_value);
+                } else if (err) {
+                    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Failed to read key %s: %s", key_name, err);
+                    SIMPLE_LOG_MSG(LL_ERROR, "Failed to read key %s: %s", key_name, err);
+                    continue;
+                } else {
+                    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Key %s not found or invalid size", key_name);
+                }
+                
+                // Calculate new value (current + increment_value)
+                new_value = current_value + increment_value;
+                
+                SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Calculating new value for %s: %lu + %u = %lu", 
+                              key_name, current_value, increment_value, new_value);
+                
+                // Write new value using PmdbWriteKV
+                int rc = PmdbWriteKV(app_id, pmdb_handle, key_name, 
+                                   strlen(key_name),
+                                   (const char*)&new_value, sizeof(new_value), 
+                                   NULL, (void *)pmdbst_get_cfh());
+                
+                if (rc) {
+                    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Failed to write key %s: rc=%d", key_name, rc);
+                    SIMPLE_LOG_MSG(LL_ERROR, "Failed to write key %s: rc=%d", key_name, rc);
+                } else {
+                    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Successfully updated %s: %lu -> %lu", 
+                                  key_name, current_value, new_value);
+                    SIMPLE_LOG_MSG(LL_DEBUG, "Updated %s: %lu -> %lu", 
+                                  key_name, current_value, new_value);
+                }
+            }
+            
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Logical Command (Bulk Key Update): Completed processing %u keys with increment_value %u", 
+                          random_count, increment_value);
+            SIMPLE_LOG_MSG(LL_NOTIFY, "Logical Command (Bulk Key Update): Completed processing %u keys with increment_value %u", 
+                          random_count, increment_value);
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_apply - EXIT (logical command completed)");
+            return 0;
+        } else {
+            SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Invalid logical command - magic=0x%x (expected 0x%x), cmd_type=%u (expected %u)", 
+                          cmd->magic, LOGICAL_CMD_MAGIC, cmd->cmd_type, LOGICAL_CMD_TYPE_BULK_KEY_UPDATE);
+        }
+    } else {
+        SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Apply - Input buffer too small for logical command (size=%zu, required=%zu), processing as normal raft_test_data_block", 
+                      input_bufsz, sizeof(struct logical_cmd));
+    }
+
+    // Handle normal raft_test_data_block processing
     const struct raft_test_data_block *rtdb =
         (const struct raft_test_data_block *)input_buf;
 
@@ -249,16 +477,20 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
                 sizeof(struct raft_test_values), NULL,
                 (void *)pmdbst_get_cfh());
 
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_apply - EXIT (normal raft_test_data_block processing completed)");
     return 0;
 }
 
 static pumicedb_read_ctx_ssize_t
 pmdbts_read(struct pumicedb_cb_cargs *args)
 {
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_read - ENTRY");
 
     const struct raft_net_client_user_id *app_id =  args->pcb_userid;
     char *reply_buf = args->pcb_reply_buf;
     size_t reply_bufsz = args->pcb_reply_bufsz;
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_read - reply_bufsz=%zu", reply_bufsz);
 
     if (!reply_buf || !reply_bufsz)
         return (ssize_t)-EINVAL;
@@ -304,6 +536,7 @@ pmdbts_read(struct pumicedb_cb_cargs *args)
     else
         return (ssize_t)rc;
 
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: pmdbts_read - EXIT (returning size=%zd)", raft_test_data_block_total_size(reply_rtdb));
     return raft_test_data_block_total_size(reply_rtdb);
 }
 
@@ -357,10 +590,15 @@ int
 main(int argc, char **argv)
 {
     pmdbts_getopt(argc, argv);
+    
+    // Initialize random seed
+    srand(time(NULL));
+    
+    SIMPLE_LOG_MSG(LL_WARN, "DEBUG: Server starting with logical command support");
 
     struct PmdbAPI api = {
-        .pmdb_write_prep   = NULL,
-        .pmdb_init         = NULL,
+        .pmdb_write_prep   = pmdbts_write_prep,
+        .pmdb_init         = pmdbts_init_keys,
         .pmdb_apply        = pmdbts_apply,
         .pmdb_read         = pmdbts_read,
         .pmdb_fill_reply   = NULL,
