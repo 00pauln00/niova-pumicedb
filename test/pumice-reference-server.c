@@ -239,6 +239,32 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
 
     pmdbts_sum_incoming_rtv(rtdb, &stored_rtv);
 
+    // RYOW SIMULATION: Simple counter - read previous value and increment
+    const char *counter_key = "counter";
+    
+    // Read previous counter value from RocksDB
+    char *err = NULL;
+    rocksdb_readoptions_t *ropts = rocksdb_readoptions_create();
+    size_t value_len = 0;
+    char *value = rocksdb_get_cf(PmdbGetRocksDB(), ropts, pmdbst_get_cfh(),
+                                 counter_key, strlen(counter_key), &value_len, &err);
+    
+    uint64_t counter_value = 1; // Start with 1
+    
+    if (value && !err && value_len == sizeof(uint64_t)) {
+        counter_value = *(uint64_t*)value + 1;
+        SIMPLE_LOG_MSG(LL_WARN, "PMDB_APPLY: RYOW - Read counter %llu, incrementing to %llu", 
+                       (unsigned long long)*(uint64_t*)value, (unsigned long long)counter_value);
+    } else {
+        SIMPLE_LOG_MSG(LL_WARN, "PMDB_APPLY: RYOW - No previous counter found, starting with 1");
+    }
+    
+    if (value) free(value);
+    rocksdb_readoptions_destroy(ropts);
+    
+    // Use counter value
+    stored_rtv.rtv_reply_xor_all_values = counter_value;
+
     DBG_RAFT_TEST_DATA_BLOCK(LL_DEBUG, rtdb, "new seqno=%ld, val=%ld",
                              stored_rtv.rtv_seqno,
                              stored_rtv.rtv_reply_xor_all_values);
@@ -248,6 +274,14 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
                 PMDTS_ENTRY_KEY_LEN, (const char *)&stored_rtv,
                 sizeof(struct raft_test_values), NULL,
                 (void *)pmdbst_get_cfh());
+
+    // RYOW SIMULATION: Write counter value for next operation
+    PmdbWriteKV(app_id, pmdb_handle, counter_key, strlen(counter_key), 
+                (const char *)&counter_value, sizeof(uint64_t), 
+                NULL, (void *)pmdbst_get_cfh());
+
+    SIMPLE_LOG_MSG(LL_WARN, "PMDB_APPLY: Completed apply for counter=%llu", 
+                   (unsigned long long)counter_value);
 
     return 0;
 }
