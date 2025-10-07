@@ -102,6 +102,9 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 		return size
 	}
 
+	log.Trace("Write prep function not found, skipping write prep for ", r.Name)
+	return 0
+
 error:
 	*cw = 0
 	return -1
@@ -119,7 +122,7 @@ func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 
 	var res interface{}
 	if fn, exists := fs.ApplyFuncs[r.Name]; exists {
-		res, err = fn(apar)
+		res, err = fn(r.Args, apar)
 		if err != nil {
 			log.Error("Apply function %s failed: %v", r.Name, err)
 			return -1
