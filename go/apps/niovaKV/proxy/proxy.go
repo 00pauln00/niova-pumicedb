@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
@@ -183,9 +182,10 @@ func (handler *proxyHandler) startPMDBClient() error {
 	var err error
 
 	//Get client object.
-	handler.pmdbClientObj = pmdbClient.PmdbClientNew(handler.raftUUID.String(), handler.clientUUID.String())
-	if handler.pmdbClientObj == nil {
-		return errors.New("PMDB client object is empty")
+	handler.pmdbClientObj, err = pmdbClient.PmdbClientNew(handler.raftUUID.String(), handler.clientUUID.String())
+	if err != nil {
+		log.Error("Failed to create PMDB client: ", err)
+		return err
 	}
 
 	//Start pumicedb client.

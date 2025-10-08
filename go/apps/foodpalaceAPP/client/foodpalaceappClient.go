@@ -724,8 +724,9 @@ func main() {
 	initLogger()
 
 	//Create new client object.
-	clientObj := PumiceDBClient.PmdbClientNew(raftUuid, clientUuid)
-	if clientObj == nil {
+	clientObj, err := PumiceDBClient.PmdbClientNew(raftUuid, clientUuid)
+	if err != nil {
+		log.Error("Failed to create PMDB client: ", err)
 		return
 	}
 	log.Info("Starting client: ", clientUuid)
