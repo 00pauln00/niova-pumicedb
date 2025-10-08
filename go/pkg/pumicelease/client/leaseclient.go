@@ -58,17 +58,14 @@ Description : Wrapper function for WriteEncoded() function
 func (co LeaseClient) write(obj *[]byte, rncui string,
 	response *[]byte) error {
 
-	var replySize int64
-
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:       rncui,
-		ReqByteArr:  *obj,
-		GetResponse: 1,
-		ReplySize:   &replySize,
-		Response:    response,
+		Request:  	 *obj,
+		GetReply: 	 1,
+		Reply:    	 response,
 	}
 
-	return co.PmdbClientObj.PutEncoded(reqArgs)
+	return co.PmdbClientObj.Put(reqArgs)
 }
 
 /*
@@ -81,13 +78,13 @@ Description : Wrapper function for GetEncoded() function
 func (co LeaseClient) read(obj *[]byte, rncui string,
 	response *[]byte) error {
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:      rncui,
-		ReqByteArr: *obj,
-		Response:   response,
+		Request: 	*obj,
+		Reply:      response,
 	}
 
-	return co.PmdbClientObj.GetEncoded(reqArgs)
+	return co.PmdbClientObj.Get(reqArgs)
 }
 
 /*
