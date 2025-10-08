@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -132,9 +131,10 @@ func (handler *leaseHandler) startPMDBClient(client string) error {
 	//Get clientObj
 	log.Info("Raft UUID - ", handler.clientObj.RaftUUID.String(), " Client UUID - ", client)
 
-	handler.clientObj.PmdbClientObj = pmdbClient.PmdbClientNew(handler.clientObj.RaftUUID.String(), client)
-	if handler.clientObj.PmdbClientObj == nil {
-		return errors.New("PMDB Client Obj could not be initialized")
+	handler.clientObj.PmdbClientObj, err = pmdbClient.PmdbClientNew(handler.clientObj.RaftUUID.String(), client)
+	if err != nil {
+		log.Error("Failed to create PMDB client: ", err)
+		return err
 	}
 
 	//Start PMDB Client

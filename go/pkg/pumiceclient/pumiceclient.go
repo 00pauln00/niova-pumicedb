@@ -32,10 +32,11 @@ type PmdbReqArgs struct {
 }
 
 type PmdbClientObj struct {
-	initialized bool
 	pmdb        C.pmdb_t
-	raftUuid    string
-	myUuid      string
+	raftUUID    *C.char
+	clientUUID  *C.char
+	initialized bool
+	//Deprecated fields
 	AppUUID     string
 	WriteSeqNo  uint64
 }
@@ -396,7 +397,7 @@ func (pco *PmdbClientObj) Decode(input unsafe.Pointer, output interface{},
 
 // Stop the Pmdb client instance
 func (pco *PmdbClientObj) Stop() error {
-	if pco.initialized == true {
+	if !pco.initialized {
 		return errors.New("Client object is not initialized")
 	}
 
@@ -404,6 +405,12 @@ func (pco *PmdbClientObj) Stop() error {
 	if rc != 0 {
 		return fmt.Errorf("PmdbClientDestroy() returned %d", rc)
 	}
+
+	C.free(unsafe.Pointer(pco.raftUUID))
+	C.free(unsafe.Pointer(pco.clientUUID))
+
+	pco.initialized = false
+
 	return nil
 }
 
@@ -413,34 +420,33 @@ func (pco *PmdbClientObj) Start() error {
 		return errors.New("Client object is already initialized")
 	}
 
-	raftUuid := GoToCString(pco.raftUuid)
-	if raftUuid == nil {
-		return errors.New("Memory allocation error")
-	}
-	defer FreeCMem(raftUuid)
-
-	clientUuid := GoToCString(pco.myUuid)
-	if clientUuid == nil {
-		return errors.New("Memory allocation error")
-	}
-	defer FreeCMem(clientUuid)
-
 	//Start the client
-	pco.pmdb = C.PmdbClientStart(raftUuid, clientUuid)
+	pco.pmdb = C.PmdbClientStart(pco.raftUUID, pco.clientUUID)
 	if pco.pmdb == nil {
 		var errno syscall.Errno
 		return fmt.Errorf("PmdbClientStart(): %d", errno)
 	}
 
+	pco.initialized = true
+
 	return nil
 }
 
-func PmdbClientNew(Graft_uuid string, Gclient_uuid string) *PmdbClientObj {
-	var client PmdbClientObj
+func PmdbClientNew(raftUUID string, clientUUID string) (*PmdbClientObj, error) {
+	var pco PmdbClientObj
 
-	client.initialized = false
-	client.raftUuid = Graft_uuid
-	client.myUuid = Gclient_uuid
+	pco.initialized = false
 
-	return &client
+	pco.raftUUID = C.CString(raftUUID)
+	if pco.raftUUID == nil {
+		return nil, errors.New("Memory allocation error")
+	}
+
+	pco.clientUUID = C.CString(clientUUID)
+	if pco.clientUUID == nil {
+		C.free(unsafe.Pointer(pco.raftUUID))
+		return nil, errors.New("Memory allocation error")
+	}
+
+	return &pco, nil
 }
