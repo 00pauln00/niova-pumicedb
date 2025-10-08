@@ -2,7 +2,6 @@ package pumiceclient
 
 import (
 	"bytes"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
@@ -20,14 +19,12 @@ import (
 */
 import "C"
 
-type PmdbReqArgs struct {
+type PmdbReq struct {
 	Rncui       string
-	ReqED       interface{}
-	ResponseED  interface{}
-	ReqByteArr  []byte
-	Response    *[]byte
-	ReplySize   *int64
-	GetResponse int
+	Request  	[]byte
+	Reply    	*[]byte
+	ReplySize 	int64
+	GetReply 	int
 	ZeroCopyObj *RDZeroCopyObj
 }
 
@@ -77,13 +74,13 @@ func CToGoString(cstring *C.char) string {
 }
 
 //Get PumiceRequest in common format
-func getPmdbReq(ra *PmdbReqArgs) (unsafe.Pointer, int64) {
+func getPmdbReq(ra *PmdbReq) (unsafe.Pointer, int64) {
 	// get bytes for requestResponse.Request and
 	// convert PumiceDBCommon.PumiceRequest
 	var req PumiceDBCommon.PumiceRequest
 
 	req.ReqType = PumiceDBCommon.APP_REQ
-	req.ReqPayload = ra.ReqByteArr
+	req.ReqPayload = ra.Request
 
 	var reqLen int64
 	reqPtr, err := PumiceDBCommon.Encode(req, &reqLen)
@@ -94,41 +91,16 @@ func getPmdbReq(ra *PmdbReqArgs) (unsafe.Pointer, int64) {
 	return reqPtr, reqLen
 }
 
-func (pco *PmdbClientObj) Put(ra *PmdbReqArgs) (unsafe.Pointer, error) {
-
-	var rBytes bytes.Buffer
-	var err error
-
-	enc := gob.NewEncoder(&rBytes)
-	err = enc.Encode(ra.ReqED)
-	if err != nil {
-		return nil, err
-	}
-
-	ra.ReqByteArr = rBytes.Bytes()
-
-	//Convert to unsafe pointer (void * for C function)
-	eData, len := getPmdbReq(ra)
-
-	//Typecast the encoded key to char*
-	ekey := (*C.char)(eData)
-	getResC := (C.int)(ra.GetResponse)
-
-	//Perform the put
-	return pco.put(ra.Rncui, ekey, len, getResC, ra.ReplySize)
-}
-
-
-func (pco *PmdbClientObj) PutEncoded(ra *PmdbReqArgs) error {
+func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
 	var replySize int64
 	var wr_err error
 	var replyB unsafe.Pointer
 
 
-	rp := unsafe.Pointer(&ra.ReqByteArr[0])
+	rp := unsafe.Pointer(&ra.Request[0])
 	rqPtr := (*C.char)(rp)
-	rqLen := int64(len(ra.ReqByteArr))
-	rsBool := (C.int)(ra.GetResponse)
+	rqLen := int64(len(ra.Request))
+	rsBool := (C.int)(ra.GetReply)
 
 	replyB, wr_err = pco.put(ra.Rncui, rqPtr,
 		rqLen, rsBool, &replySize)
@@ -141,68 +113,24 @@ func (pco *PmdbClientObj) PutEncoded(ra *PmdbReqArgs) error {
 	if replyB != nil {
 		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
 		buffer := bytes.NewBuffer(bytes_data)
-		*ra.Response = buffer.Bytes()
+		*ra.Reply = buffer.Bytes()
 	}
 	// Free the buffer allocated by the C library
 	C.free(replyB)
 	return nil
 }
 
-func (pco *PmdbClientObj) Get(ra *PmdbReqArgs) error {
-
-	var replySize int64
-	var rd_err error
-	var replyB unsafe.Pointer
-	var requestBytes bytes.Buffer
-	var err error
-
-	enc := gob.NewEncoder(&requestBytes)
-	err = enc.Encode(ra.ReqED)
-	if err != nil {
-		return err
-	}
-
-	ra.ReqByteArr = requestBytes.Bytes()
-
-	//Convert to unsafe pointer (void * for C function)
-	eData, reqLen := getPmdbReq(ra)
-
-	//Typecast the encoded key to char*
-	encoded_key := (*C.char)(eData)
-
-	if len(ra.Rncui) == 0 {
-		replyB, rd_err = pco.get_any(encoded_key,
-			reqLen, &replySize)
-	} else {
-		replyB, rd_err = pco.get(ra.Rncui, encoded_key,
-			reqLen, &replySize)
-	}
-
-	if rd_err != nil {
-		return rd_err
-	}
-
-	if replyB != nil {
-		err = PumiceDBCommon.Decode(unsafe.Pointer(replyB),
-			ra.ResponseED,
-			replySize)
-	}
-	//Free the buffer allocated by C library.
-	C.free(replyB)
-	return err
-}
-
 /*
-GetEncoded allows client to pass the encoded KV struct for reading
+Get allows client to pass the encoded KV struct for reading
 */
-func (pco *PmdbClientObj) GetEncoded(ra *PmdbReqArgs) error {
+func (pco *PmdbClientObj) Get(ra *PmdbReq) error {
 	var replySize int64
 	var rd_err error
 	var replyB unsafe.Pointer
 
 	//Convert it to unsafe pointer (void * for C function)
-	eData := unsafe.Pointer(&ra.ReqByteArr[0])
-	reqLen := int64(len(ra.ReqByteArr))
+	eData := unsafe.Pointer(&ra.Request[0])
+	reqLen := int64(len(ra.Request))
 	eReq := (*C.char)(eData)
 
 	if len(ra.Rncui) == 0 {
@@ -220,7 +148,7 @@ func (pco *PmdbClientObj) GetEncoded(ra *PmdbReqArgs) error {
 	if replyB != nil {
 		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
 		buffer := bytes.NewBuffer(bytes_data)
-		*ra.Response = buffer.Bytes()
+		*ra.Reply = buffer.Bytes()
 	}
 	//Free the buffer allocated by C library.
 	C.free(replyB)
@@ -228,11 +156,11 @@ func (pco *PmdbClientObj) GetEncoded(ra *PmdbReqArgs) error {
 }
 
 //Read the value of key on the client the application passed buffer
-func (pco *PmdbClientObj) GetZeroCopy(ra *PmdbReqArgs) error {
+func (pco *PmdbClientObj) GetZeroCopy(ra *PmdbReq) error {
 
 	var len int64
 	//Encode the input buffer passed by client.
-	ed_key, err := PumiceDBCommon.Encode(ra.ReqED, &len)
+	ed_key, err := PumiceDBCommon.Encode(ra.Request, &len)
 	if err != nil {
 		return err
 	}

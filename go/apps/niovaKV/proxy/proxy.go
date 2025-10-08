@@ -234,14 +234,12 @@ func (handler *proxyHandler) start_SerfAgent() error {
 func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) error {
 	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
 	rncui := fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
-	var replySize int64
-	reqArgs := &pmdbClient.PmdbReqArgs{
-		Rncui:       rncui,
-		ReqByteArr:  request,
-		ReplySize:   &replySize,
-		GetResponse: 0,
+	reqArgs := &pmdbClient.PmdbReq{
+		Rncui:    rncui,
+		Request:  request,
+		GetReply: 0,
 	}
-	err := handler.pmdbClientObj.PutEncoded(reqArgs)
+	err := handler.pmdbClientObj.Put(reqArgs)
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
@@ -257,12 +255,12 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 //Read call definition for HTTP server
 func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:      "",
-		ReqByteArr: request,
-		Response:   response,
+		Request: request,
+		Reply:   response,
 	}
-	return handler.pmdbClientObj.GetEncoded(reqArgs)
+	return handler.pmdbClientObj.Get(reqArgs)
 }
 
 func (handler *proxyHandler) start_HTTPServer() error {

@@ -524,19 +524,25 @@ func (wrObj *wrOne) exec() error {
 
 	var errMsg error
 	var wrData = &covidVaxData{}
-	var replySize int64
 	response := make([]byte, 0)
 
-	reqArgs := &PumiceDBClient.PmdbReqArgs{
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	err := enc.Encode(wrObj.op.covidData)
+	if err != nil {
+		log.Error("Encoding error : ", err)
+		return err
+	}
+
+	reqArgs := &PumiceDBClient.PmdbReq{
 		Rncui:       wrObj.op.rncui,
-		ReqED:       wrObj.op.covidData,
-		GetResponse: 1,
-		ReplySize:   &replySize,
-		Response:    &response,
+		Request:       request.Bytes(),
+		GetReply: 	 0,
+		Reply:   	 &response,
 	}
 
 	//Perform write Operation.
-	_, err := wrObj.op.cliObj.Put(reqArgs)
+	err = wrObj.op.cliObj.Put(reqArgs)
 
 	if err != nil {
 		errMsg = errors.New("exec() method failed for WriteOne.")
@@ -548,9 +554,9 @@ func (wrObj *wrOne) exec() error {
 		errMsg = nil
 	}
 
-	if reqArgs.Response != nil && len(*reqArgs.Response) > 0 {
+	if reqArgs.Reply != nil && len(*reqArgs.Reply) > 0 {
 		var decoded CovidAppLib.CovidLocale
-		buffer := bytes.NewBuffer(*reqArgs.Response)
+		buffer := bytes.NewBuffer(*reqArgs.Reply)
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&decoded)
 		if err != nil {
@@ -615,28 +621,40 @@ func (rdObj *rdOne) exec() error {
 	var rErr error
 	var rdData = &covidVaxData{}
 
-	resStruct := &CovidAppLib.CovidLocale{}
+	
 
 	//read Operation
-	reqArgs := &PumiceDBClient.PmdbReqArgs{
-		Rncui:      "",
-		ReqED:      rdObj.op.covidData,
-		ResponseED: resStruct,
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	err := enc.Encode(rdObj.op.covidData)
+	if err != nil {
+		log.Error("Encoding error : ", err)
+		return err
 	}
 
-	err := rdObj.op.cliObj.Get(reqArgs)
+	response := make([]byte, 0)
+	resStruct := &CovidAppLib.CovidLocale{}
+	reqArgs := &PumiceDBClient.PmdbReq{
+		Rncui:      "",
+		Request:    request.Bytes(),
+		Reply: 		&response,
+	}
+	
+
+	err = rdObj.op.cliObj.Get(reqArgs)
 
 	if err != nil {
-
 		log.Info("Read request failed !!", err)
 		rdData.Status = -1
 		rdData.fillReadOne(rdObj)
 		rErr = errors.New("exec() method failed for ReadOne")
 
 	} else {
+		dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+		dec.Decode(&resStruct)
+
 
 		log.Info("Result of the read request is: ", resStruct)
-
 		//typecast int64 type data of csv file.
 		totalVax := strconv.Itoa(int(resStruct.TotalVaccinations))
 		peopleVax := strconv.Itoa(int(resStruct.PeopleVaccinated))
@@ -733,20 +751,23 @@ func (wmObj *wrMul) exec() error {
 
 	var wErr error
 	var wmData = &covidVaxData{}
-	var replySize int64
-	var reqArgs PumiceDBClient.PmdbReqArgs
+	var reqArgs PumiceDBClient.PmdbReq
 
 	for csvStruct := range writeMultiMap {
 		rncui := getRncui(keyRncuiMap, &csvStruct)
 		wmObj.op.key = csvStruct.Location
 		wmObj.op.rncui = rncui
 
-		reqArgs.Rncui = rncui
-		reqArgs.ReqED = &csvStruct
-		reqArgs.GetResponse = 0
-		reqArgs.ReplySize = &replySize
 
-		_, err := wmObj.op.cliObj.Put(&reqArgs)
+		var request bytes.Buffer
+		enc := gob.NewEncoder(&request)
+		enc.Encode(&csvStruct)
+
+		reqArgs.Request = request.Bytes()
+		reqArgs.Rncui = rncui
+		reqArgs.GetReply = 0
+
+		err := wmObj.op.cliObj.Put(&reqArgs)
 		if err != nil {
 			wmData.Status = -1
 			log.Info("Write key-value failed : ", err)
@@ -833,16 +854,23 @@ func (rmObj *rdMul) exec() error {
 	var rErr error
 	//var reply_size int64
 	var rmData = &covidVaxData{}
-	var reqArgs PumiceDBClient.PmdbReqArgs
+	var reqArgs PumiceDBClient.PmdbReq
 
 	if len(rmObj.multiRead) == len(rmObj.rdRncui) {
 
 		for i := range rmObj.rdRncui {
 
-			resStruct := &CovidAppLib.CovidLocale{}
+			var request bytes.Buffer
+			enc := gob.NewEncoder(&request)
+			enc.Encode(rmObj.multiRead[i])
+
 			reqArgs.Rncui = ""
-			reqArgs.ReqED = rmObj.multiRead[i]
-			reqArgs.ResponseED = resStruct
+			reqArgs.Request = request.Bytes()
+			reqArgs.GetReply = 1
+
+			resStruct := &CovidAppLib.CovidLocale{}
+			response := make([]byte, 0)
+			reqArgs.Reply = &response
 
 			err := rmObj.op.cliObj.Get(&reqArgs)
 
@@ -855,6 +883,8 @@ func (rmObj *rdMul) exec() error {
 				rErr = errors.New("exec() method failed for ReadMulti")
 
 			} else {
+				dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+				dec.Decode(&resStruct)
 
 				log.Info("Result of the read request is: ", resStruct)
 
