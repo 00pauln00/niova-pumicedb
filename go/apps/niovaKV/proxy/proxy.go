@@ -238,6 +238,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 		Rncui:    rncui,
 		Request:  request,
 		GetReply: 0,
+		ReqType:  PumiceDBCommon.APP_REQ,
 	}
 	err := handler.pmdbClientObj.Put(reqArgs)
 	if err != nil {
@@ -259,6 +260,7 @@ func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) erro
 		Rncui:      "",
 		Request: request,
 		Reply:   response,
+		ReqType: PumiceDBCommon.APP_REQ,
 	}
 	return handler.pmdbClientObj.Get(reqArgs)
 }
