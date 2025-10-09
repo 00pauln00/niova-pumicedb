@@ -1,7 +1,6 @@
 package pumiceclient
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
@@ -23,7 +22,6 @@ type PmdbReq struct {
 	Rncui       string
 	Request  	[]byte
 	Reply    	*[]byte
-	ReplySize 	int64
 	GetReply 	int
 	ZeroCopyObj *RDZeroCopyObj
 }
@@ -74,7 +72,7 @@ func CToGoString(cstring *C.char) string {
 }
 
 //Get PumiceRequest in common format
-func getPmdbReq(ra *PmdbReq) (unsafe.Pointer, int64) {
+func pmdbreqwrap(ra *PmdbReq) (*C.char, int64) {
 	// get bytes for requestResponse.Request and
 	// convert PumiceDBCommon.PumiceRequest
 	var req PumiceDBCommon.PumiceRequest
@@ -88,35 +86,25 @@ func getPmdbReq(ra *PmdbReq) (unsafe.Pointer, int64) {
 		return nil, 0
 	}
 
-	return reqPtr, reqLen
+	return (*C.char)(reqPtr), reqLen
 }
 
 func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
-	var replySize int64
-	var wr_err error
-	var replyB unsafe.Pointer
-
-
-	rp := unsafe.Pointer(&ra.Request[0])
-	rqPtr := (*C.char)(rp)
-	rqLen := int64(len(ra.Request))
-	rsBool := (C.int)(ra.GetReply)
-
-	replyB, wr_err = pco.put(ra.Rncui, rqPtr,
-		rqLen, rsBool, &replySize)
-	if wr_err != nil {
-		return wr_err
+	rsb := (C.int)(ra.GetReply)
+	rp, rl := pmdbreqwrap(ra)
+	if rp == nil || rl == 0 {
+		return errors.New("Error encoding the request")
 	}
 
-
-
-	if replyB != nil {
-		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
-		buffer := bytes.NewBuffer(bytes_data)
-		*ra.Reply = buffer.Bytes()
+	var rs int64
+	rb, err := pco.put(ra.Rncui, rp, rl, rsb, &rs)
+	if err != nil || rb == nil {
+		return err
 	}
-	// Free the buffer allocated by the C library
-	C.free(replyB)
+
+	defer C.free(unsafe.Pointer(rb))
+	*ra.Reply = C.GoBytes(unsafe.Pointer(rb), C.int(rs))
+
 	return nil
 }
 
@@ -124,34 +112,26 @@ func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
 Get allows client to pass the encoded KV struct for reading
 */
 func (pco *PmdbClientObj) Get(ra *PmdbReq) error {
-	var replySize int64
-	var rd_err error
-	var replyB unsafe.Pointer
+	rp, rl := pmdbreqwrap(ra)
+	if rp == nil || rl == 0 {
+		return errors.New("Error encoding the request")
+	}
 
-	//Convert it to unsafe pointer (void * for C function)
-	eData := unsafe.Pointer(&ra.Request[0])
-	reqLen := int64(len(ra.Request))
-	eReq := (*C.char)(eData)
-
+	var rs int64
+	var rb unsafe.Pointer
+	var err error
 	if len(ra.Rncui) == 0 {
-		replyB, rd_err = pco.get_any(eReq,
-			reqLen, &replySize)
+		rb, err = pco.get_any(rp, rl, &rs)
 	} else {
-		replyB, rd_err = pco.get(ra.Rncui, eReq,
-			reqLen, &replySize)
+		rb, err = pco.get(ra.Rncui, rp, rl, &rs)
+	}
+	if err != nil || rb == nil {
+		return err
 	}
 
-	if rd_err != nil {
-		return rd_err
-	}
+	defer C.free(unsafe.Pointer(rb))
+	*ra.Reply = C.GoBytes(unsafe.Pointer(rb), C.int(rs))
 
-	if replyB != nil {
-		bytes_data := C.GoBytes(unsafe.Pointer(replyB), C.int(replySize))
-		buffer := bytes.NewBuffer(bytes_data)
-		*ra.Reply = buffer.Bytes()
-	}
-	//Free the buffer allocated by C library.
-	C.free(replyB)
 	return nil
 }
 
