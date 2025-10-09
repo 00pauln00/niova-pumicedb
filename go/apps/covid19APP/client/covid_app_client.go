@@ -539,6 +539,7 @@ func (wrObj *wrOne) exec() error {
 		Request:       request.Bytes(),
 		GetReply: 	 0,
 		Reply:   	 &response,
+		ReqType:	 PumiceDBCommon.APP_REQ,
 	}
 
 	//Perform write Operation.
@@ -638,6 +639,7 @@ func (rdObj *rdOne) exec() error {
 		Rncui:      "",
 		Request:    request.Bytes(),
 		Reply: 		&response,
+		ReqType:	PumiceDBCommon.APP_REQ,
 	}
 	
 
@@ -766,6 +768,7 @@ func (wmObj *wrMul) exec() error {
 		reqArgs.Request = request.Bytes()
 		reqArgs.Rncui = rncui
 		reqArgs.GetReply = 0
+		reqArgs.ReqType = PumiceDBCommon.APP_REQ
 
 		err := wmObj.op.cliObj.Put(&reqArgs)
 		if err != nil {
@@ -867,6 +870,7 @@ func (rmObj *rdMul) exec() error {
 			reqArgs.Rncui = ""
 			reqArgs.Request = request.Bytes()
 			reqArgs.GetReply = 1
+			reqArgs.ReqType = PumiceDBCommon.APP_REQ
 
 			resStruct := &CovidAppLib.CovidLocale{}
 			response := make([]byte, 0)

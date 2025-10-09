@@ -20,6 +20,7 @@ import "C"
 
 type PmdbReq struct {
 	Rncui       string
+	ReqType		int
 	Request  	[]byte
 	Reply    	*[]byte
 	GetReply 	int
@@ -77,7 +78,7 @@ func pmdbreqwrap(ra *PmdbReq) (*C.char, int64) {
 	// convert PumiceDBCommon.PumiceRequest
 	var req PumiceDBCommon.PumiceRequest
 
-	req.ReqType = PumiceDBCommon.APP_REQ
+	req.ReqType = ra.ReqType
 	req.ReqPayload = ra.Request
 
 	var reqLen int64

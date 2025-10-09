@@ -349,6 +349,7 @@ func (woexc *writeOne) exec() error {
 	reqArgs := &PumiceDBClient.PmdbReq{
 		Rncui:       woexc.args[1],
 		Request:	 request.Bytes(),
+		ReqType:	 PumiceDBCommon.APP_REQ,
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
@@ -413,6 +414,7 @@ func (roe *readOne) exec() error {
 		Request:    request.Bytes(),
 		GetReply: 	1,
 		Reply: 		&reply,
+		ReqType: 	PumiceDBCommon.APP_REQ,
 	}
 
 	err := roe.rq.clientObj.Get(reqArgs)
@@ -491,6 +493,7 @@ func (wme *writeMulti) exec() error {
 		enc.Encode(wme.multiReqdata[i])
 		reqArgs.Rncui = rncui
 		reqArgs.Request = request.Bytes()
+		reqArgs.ReqType = PumiceDBCommon.APP_REQ
 
 		err := wme.rq.clientObj.Put(&reqArgs)
 		if err != nil {
@@ -573,6 +576,7 @@ func (rme *readMulti) exec() error {
 				Rncui:      "",
 				Request:    request.Bytes(),
 				Reply: 		&reply,
+				ReqType:	PumiceDBCommon.APP_REQ,
 			}
 			err := rme.rq.clientObj.Get(reqArgs)
 			if err != nil {
