@@ -3,6 +3,9 @@ package pumicecommon
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
+	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +24,8 @@ import (
 #include <stdio.h>
 */
 import "C"
+
+type Format string
 
 type PMDBInfo struct {
 	RaftUUID   string
@@ -52,6 +57,42 @@ const (
 	LOOKOUT_REQ     = 2
 	FUNC_REQ        = 3
 )
+
+const (
+	JSON Format = "json"
+	XML  Format = "xml"
+	GOB  Format = "gob"
+)
+
+func Encoder(f Format, v any) ([]byte, error) {
+	switch f {
+	case JSON:
+		return json.Marshal(v)
+	case XML:
+		return xml.Marshal(v)
+	case GOB:
+		var b bytes.Buffer
+		if err := gob.NewEncoder(&b).Encode(v); err != nil {
+			return nil, err
+		}
+		return b.Bytes(), nil
+	default:
+		return nil, errors.New("invalid format")
+	}
+}
+
+func Decoder(f Format, data []byte, v any) error {
+	switch f {
+	case JSON:
+		return json.Unmarshal(data, v)
+	case XML:
+		return xml.Unmarshal(data, v)
+	case GOB:
+		return gob.NewDecoder(bytes.NewReader(data)).Decode(v)
+	default:
+		return errors.New("invalid format")
+	}
+}
 
 // Func for initializing the logger
 func InitLogger(logPath string) error {
