@@ -3,6 +3,7 @@ package httpserver
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,8 +20,8 @@ type HTTPServerHandler struct {
 	Port                uint16
 	GETHandler          func([]byte, *[]byte) error
 	PUTHandler          func([]byte, *[]byte) error
-	ReadHandler         func(string, []byte, *[]byte) error
-	WriteHandler        func(string, string, []byte, *[]byte) error
+	ReadHandler         func(string, []byte, *[]byte, *http.Request) error
+	WriteHandler        func(string, string, []byte, *[]byte, *http.Request) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -170,7 +171,7 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 }
 
 func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
-	body, err := ioutil.ReadAll(reader.Body)
+	body, err := io.ReadAll(reader.Body)
 	if err != nil {
 		log.Error("Error reading request body: ", err)
 		http.Error(writer, "Bad Request", http.StatusBadRequest)
@@ -184,16 +185,15 @@ func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, re
 
 	switch reader.Method {
 	case "GET":
-		err = handler.ReadHandler(name, body, &response)
+		err = handler.ReadHandler(name, body, &response, reader)
 	case "PUT":
-		err = handler.WriteHandler(name, rncui, body, &response)
+		err = handler.WriteHandler(name, rncui, body, &response, reader)
 	}
 	if err != nil {
 		log.Error("Error in FuncHandler: ", err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
 	if response != nil {
 		// Write the response back to the client
 		writer.Header().Set("Content-Type", "application/json")

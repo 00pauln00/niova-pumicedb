@@ -92,7 +92,6 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 			log.Errorf("Write prep function %s failed: %v", r.Name, err)
 			return -1
 		}
-
 		size := copyResultToBuffer(res, wpa.AppData, int(wpa.AppDataSize))
 		//Continue write if the function executed successfully
 		if size < 0 {
@@ -161,7 +160,6 @@ func (fs *FuncServer) Read(rda *pmsvr.PmdbCbArgs) int64 {
 			log.Errorf("Read function %s failed: %v", r.Name, err)
 			return -1
 		}
-
 		size := copyResultToBuffer(res, rda.ReplyBuf, int(rda.ReplySize))
 		return size
 	}
