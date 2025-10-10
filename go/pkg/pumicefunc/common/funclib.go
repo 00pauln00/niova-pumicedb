@@ -3,7 +3,7 @@ package funclib
 // Struct to forward from the pmdb client to the pmdb server
 type FuncReq struct {
 	Name string
-	Args []byte
+	Args any
 }
 
 // Struct to contain KV changes
