@@ -16,6 +16,7 @@ ENV NIOVA_INOTIFY_BASE_PATH="/pumice/ctl-interface"
 COPY pumice.sh ./ 
 COPY libexec ./libexec
 COPY configs ./configs
+COPY lib ./lib
 
 # Make scripts executable
 RUN chmod +x pumice.sh

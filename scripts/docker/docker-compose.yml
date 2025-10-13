@@ -6,7 +6,7 @@ services:
     container_name: pumice_node1
     command: ["0"]  # container index
     volumes:
-      - ./configs:/pumice/configs
+      - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node1:/pumice/logs
     network_mode: "host"
 
@@ -15,8 +15,9 @@ services:
     container_name: pumice_node2
     command: ["1"]
     volumes:
-      - ./configs:/pumice/configs
+      - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node2:/pumice/logs
+
     network_mode: "host"
 
   node3:
@@ -24,7 +25,7 @@ services:
     container_name: pumice_node3
     command: ["2"]
     volumes:
-      - ./configs:/pumice/configs
+      - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node3:/pumice/logs
     network_mode: "host"
 
@@ -33,7 +34,7 @@ services:
     container_name: pumice_node4
     command: ["3"]
     volumes:
-      - ./configs:/pumice/configs
+      - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node4:/pumice/logs
     network_mode: "host"
 
@@ -42,7 +43,7 @@ services:
     container_name: pumice_node5
     command: ["4"]
     volumes:
-      - ./configs:/pumice/configs
+      - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node5:/pumice/logs
     network_mode: "host"
 
