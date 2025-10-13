@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  node1:
+    build: .
+    container_name: pumice_node1
+    command: ["0"]  # container index
+    volumes:
+      - ./configs:/pumice/configs
+      - ./logs/node1:/pumice/logs
+    network_mode: "host"
+
+  node2:
+    build: .
+    container_name: pumice_node2
+    command: ["1"]
+    volumes:
+      - ./configs:/pumice/configs
+      - ./logs/node2:/pumice/logs
+    network_mode: "host"
+
+  node3:
+    build: .
+    container_name: pumice_node3
+    command: ["2"]
+    volumes:
+      - ./configs:/pumice/configs
+      - ./logs/node3:/pumice/logs
+    network_mode: "host"
+
+  node4:
+    build: .
+    container_name: pumice_node4
+    command: ["3"]
+    volumes:
+      - ./configs:/pumice/configs
+      - ./logs/node4:/pumice/logs
+    network_mode: "host"
+
+  node5:
+    build: .
+    container_name: pumice_node5
+    command: ["4"]
+    volumes:
+      - ./configs:/pumice/configs
+      - ./logs/node5:/pumice/logs
+    network_mode: "host"
+
