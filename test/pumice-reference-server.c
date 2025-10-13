@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+#include <time.h>
+#include <stdlib.h>
+
 #include <rocksdb/c.h>
 
 #include "niova/niova_backtrace.h"
@@ -493,6 +496,9 @@ int
 main(int argc, char **argv)
 {
     pmdbts_getopt(argc, argv);
+
+        // Initialize random seed
+    srand(time(NULL));
 
     struct PmdbAPI api = {
         .pmdb_write_prep   = pmdbts_write_prep,
