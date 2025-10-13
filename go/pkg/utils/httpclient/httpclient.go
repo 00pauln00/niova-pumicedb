@@ -11,7 +11,7 @@ import (
 
 func service_Request(request *http.Request) ([]byte, error) {
 
-	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("Content-Type", "application/json")
 	httpClient := &http.Client{}
 
 	response, err := httpClient.Do(request)
