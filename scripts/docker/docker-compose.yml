@@ -4,11 +4,13 @@ services:
   node1:
     build: .
     container_name: pumice_node1
-    command: ["0"]  # container index
+    command: ["0"]
     volumes:
       - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node1:/pumice/logs
-    network_mode: "host"
+    networks:
+      raftnet:
+        ipv4_address: 172.18.0.2
 
   node2:
     build: .
@@ -17,8 +19,9 @@ services:
     volumes:
       - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node2:/pumice/logs
-
-    network_mode: "host"
+    networks:
+      raftnet:
+        ipv4_address: 172.18.0.3
 
   node3:
     build: .
@@ -27,7 +30,9 @@ services:
     volumes:
       - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node3:/pumice/logs
-    network_mode: "host"
+    networks:
+      raftnet:
+        ipv4_address: 172.18.0.4
 
   node4:
     build: .
@@ -36,7 +41,9 @@ services:
     volumes:
       - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node4:/pumice/logs
-    network_mode: "host"
+    networks:
+      raftnet:
+        ipv4_address: 172.18.0.5
 
   node5:
     build: .
@@ -45,5 +52,13 @@ services:
     volumes:
       - ./ctl-interface:/pumice/ctl-interface
       - ./logs/node5:/pumice/logs
-    network_mode: "host"
+    networks:
+      raftnet:
+        ipv4_address: 172.18.0.6
 
+networks:
+  raftnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16

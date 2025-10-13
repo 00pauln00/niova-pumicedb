@@ -1,31 +1,26 @@
 #!/bin/bash
 # pumice.sh
-# $1 = container index (0,1,2,...)
+# Start the Pumice node based on container IP using a single grep loop
+set -e
 
-INDEX=$1
+# Detect container IP inside the Docker network
+MY_IP=$(hostname -i | awk '{print $1}')
+echo "Container IP detected as $MY_IP"
 
-if [ -z "$INDEX" ]; then
-    echo "Usage: $0 <container-index>"
-    exit 1
-fi
-
-mkdir -p logs
-
-# Get Raft UUID (same for all nodes)
+# Get Raft UUID (assume only one .raft file exists)
 RAFT_FILE=$(ls -1 configs/*.raft | head -n1)
 RAFT_UUID=$(basename "$RAFT_FILE" .raft)
-
 
 if [ -z "$RAFT_UUID" ]; then
     echo "ERROR: No .raft file found in configs/"
     exit 1
 fi
 
-# Pick peer UUID based on alphabetical order and container index
-PEER_FILE=$(ls -1 configs/*.peer | sed -n "$((INDEX+1))p")
+# Find the .peer file containing the matching IPADDR in one grep pipeline
+PEER_FILE=$(grep -il "IPADDR[[:space:]]\+$MY_IP" configs/*.peer | head -n1)
 
 if [ -z "$PEER_FILE" ]; then
-    echo "ERROR: No .peer file found for index $INDEX"
+    echo "ERROR: No .peer file found with IPADDR=$MY_IP"
     exit 1
 fi
 
