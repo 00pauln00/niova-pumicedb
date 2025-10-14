@@ -146,6 +146,28 @@ PmdbWriteKV(const struct raft_net_client_user_id *, void *pmdb_handle,
             const char *key, size_t key_len, const char *value,
             size_t value_len, void (*comp_cb)(void *), void *app_handle);
 
+
+/**
+ * PmdbDeleteKV - to be called by the pumice-enabled application in 'apply'
+ *    context only.  This call is used by the application to stage KVs for
+ *    deletion from rocksDB.  KVs added within a single instance of the 'apply'
+ *    callback are atomically written to rocksDB.
+ * @app_uuid:  UUID of the application instance
+ * @pmdb_handle:  the handle which was provided from pumice_db to the apply
+ *    callback.
+ * @key:  name of the key
+ * @key_len:  length of the key
+ * @comp_cb:  optional callback which is issued following the rocksDB write
+ *    operation.
+ * @app_handle:  a handle pointer which belongs to the application.  This same
+ *    pointer is returned via comp_cb().  Note, that at this time, PMDB assumes
+ *    this handle is a pointer to a column family.
+ */
+int
+PmdbDeleteKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle,
+            const char *key, size_t key_len, void (*comp_cb)(void *), 
+            void *app_handle);
+
 /**
  * PmdbExec - blocking API call used by a pumice-enabled application which
  *    starts the underlying raft process and waits for incoming requests.
