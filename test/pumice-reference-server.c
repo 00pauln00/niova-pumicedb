@@ -21,7 +21,7 @@
 
 #include "pumice_db.h"
 
-#define OPTS "u:r:hac"
+#define OPTS "u:r:hack:w:"
 
 REGISTRY_ENTRY_FILE_GENERATE;
 
@@ -31,7 +31,9 @@ static bool coalescedWrites = false;
 const char *raft_uuid_str;
 const char *my_uuid_str;
 
-#define MAX_KEYS 100
+// Configurable parameters for performance testing
+static uint32_t max_keys = 1000;  // Default to 1K keys
+static uint32_t keys_per_write = 1000;  // Default to 1K keys per write
 #define KEY_PREFIX "key"
 
 #define PMDTS_ENTRY_KEY_LEN sizeof(struct raft_net_client_user_key_v0)
@@ -64,8 +66,8 @@ pmdbts_init_keys(struct pumicedb_cb_cargs *args)
     rocksdb_column_family_handle_t *cfh = pmdbst_get_cfh();
     char *err = NULL;
     
-    // Initialize keys 1-100 with value 0
-    for (int i = 1; i <= MAX_KEYS; i++) {
+    // Initialize keys 1 to max_keys with value 0
+    for (uint32_t i = 1; i <= max_keys; i++) {
         char key_name[32];
         uint64_t value = 0;
         
@@ -86,7 +88,7 @@ pmdbts_init_keys(struct pumicedb_cb_cargs *args)
         }
     }
     
-    SIMPLE_LOG_MSG(LL_NOTIFY, "Initialized %d keys with value 0", MAX_KEYS);
+    SIMPLE_LOG_MSG(LL_WARN, "Initialized %u keys with value 0", max_keys);
 }
 
 // Write preparation function - generates random number
@@ -102,11 +104,11 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
             (const struct raft_test_data_block *)input_buf;
             
         if (rtdb->rtdb_logical_cmd == true) {
-            // Generate random values for logical command
-            uint32_t random_count = (rand() % MAX_KEYS) + 1;
+            // Simple approach: update all keys from 1 to keys_per_write
+            uint32_t random_count = keys_per_write;
             uint32_t increment_value = (rand() % 1000) + 1;
-            
-            // Store the random values in the input buffer for apply to use
+
+            // Store the values in the input buffer for apply to use
             struct raft_test_data_block *input_rtdb = (struct raft_test_data_block *)input_buf;
             input_rtdb->rtdb_random_count = random_count;
             input_rtdb->rtdb_increment_value = increment_value;
@@ -311,18 +313,15 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
             (const struct raft_test_data_block *)input_buf;
             
         if (rtdb->rtdb_logical_cmd == true) {
-            // Get the random values that were set in write_prep
-            uint32_t random_count = rtdb->rtdb_random_count;
+            // Get the values that were set in write_prep
+            uint32_t random_count = rtdb->rtdb_random_count;  // Always keys_per_write
             uint32_t increment_value = rtdb->rtdb_increment_value;
             
-            if (random_count > MAX_KEYS) {
-                random_count = MAX_KEYS;
-            }
             
             SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Processing %u keys with increment_value=%u", 
                           random_count, increment_value);
             
-            // Read and update the first 'random_count' keys
+            // Read and update keys from 1 to keys_per_write
             for (uint32_t i = 1; i <= random_count; i++) {
                 char key_name[32];
                 uint64_t current_value = 0;
@@ -348,8 +347,14 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
                     continue;
                 }
                 
-                // Calculate new value (current + increment_value)
-                new_value = current_value + increment_value;
+                // Calculate new value (current + increment_value) with overflow protection
+                if (current_value > UINT64_MAX - increment_value) {
+                    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Preventing overflow for key %s: current=%lu, increment=%u", 
+                                  key_name, current_value, increment_value);
+                    new_value = UINT64_MAX;  // Cap at maximum value
+                } else {
+                    new_value = current_value + increment_value;
+                }
                 
                 // Write new value using PmdbWriteKV
                 int rc = PmdbWriteKV(app_id, pmdb_handle, key_name, 
@@ -450,7 +455,11 @@ static void
 pmdbts_print_help(const int error, char **argv)
 {
     fprintf(error ? stderr : stdout,
-            "Usage: %s -r <UUID> -u <UUID> [-c (coalesce-raft-writes)] [-a (async-raft-writes)]\n", argv[0]);
+            "Usage: %s -r <UUID> -u <UUID> [-c (coalesce-raft-writes)] [-a (async-raft-writes)] [-k <max-keys>] [-w <keys-per-write>]\n", argv[0]);
+    fprintf(error ? stderr : stdout,
+            "  -k: Maximum keys in system (default: 1000)\n");
+    fprintf(error ? stderr : stdout,
+            "  -w: Keys per write operation (default: 1000)\n");
 
     exit(error);
 }
@@ -479,6 +488,14 @@ pmdbts_getopt(int argc, char **argv)
         case 'u':
             my_uuid_str = optarg;
             break;
+        case 'k':
+            max_keys = atoi(optarg);
+            if (max_keys == 0) max_keys = 1000;
+            break;
+        case 'w':
+            keys_per_write = atoi(optarg);
+            if (keys_per_write == 0) keys_per_write = 1000;
+            break;
         case 'h':
             pmdbts_print_help(0, argv);
             break;
@@ -497,7 +514,7 @@ main(int argc, char **argv)
 {
     pmdbts_getopt(argc, argv);
 
-        // Initialize random seed
+    // Initialize random seed
     srand(time(NULL));
 
     struct PmdbAPI api = {
