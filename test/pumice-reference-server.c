@@ -280,8 +280,8 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
             // Generate start_index (1 to 1 billion)
             uint32_t start_index = (rand() % 1000000000) + 1;
             
-            // Use the total number of keys from the macro
-            uint32_t total_count = RAFT_NET_WR_SUPP_MAX - 1;
+            // Use the total number of keys from the macro, but leave space for other operations
+            uint32_t total_count = RAFT_NET_WR_SUPP_MAX - 4;
             
             // Calculate end_index with overflow protection
             uint32_t end_index;
