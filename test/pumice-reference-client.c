@@ -22,7 +22,7 @@
 
 #include "pumice_db_client.h"
 
-#define OPTS "au:r:h"
+#define OPTS "au:r:hl"
 
 #define PMDB_TEST_CLIENT_MAX_APPS 1024
 #define PMDB_TEST_CLIENT_REQ_HIST_SZ 1024
@@ -33,6 +33,7 @@ static regex_t pmdbtcCmdRegex;
 static const char *raft_uuid_str;
 static const char *my_uuid_str;
 static bool use_async_requests = false;
+static bool use_logical_commands = false;
 
 static pmdb_t pmdbtcPMDB;
 
@@ -621,7 +622,8 @@ static void
 pmdbtc_print_help(const int error, char **argv)
 {
     fprintf(error ? stderr : stdout,
-            "Usage: %s [-a (use async requests)] -r <UUID> -u <UUID>\n",
+            "Usage: %s [-a (use async requests)]  [-l (enable logical commands)]"
+            " -r <UUID> -u <UUID>\n",
             argv[0]);
 
     exit(error);
@@ -641,6 +643,9 @@ pmdbtc_getopt(int argc, char **argv)
         {
         case 'a':
             use_async_requests = true;
+            break;
+        case 'l':
+            use_logical_commands = true;
             break;
         case 'r':
             raft_uuid_str = optarg;
@@ -759,6 +764,9 @@ pmdbtc_write_prep(struct pmdbtc_request *preq)
         pmdbtc_app_rtv_increment(papp);
         preq->preq_rtv[i] = papp->papp_last_rtv_request;
     }
+
+    // Set logical command flag if enabled
+    preq->preq_rtdb.rtdb_logical_cmd = use_logical_commands;
 }
 
 static void
