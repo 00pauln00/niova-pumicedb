@@ -433,6 +433,42 @@ func (*PmdbServerObject) LookupKey(key string, key_len int64,
 	return PmdbLookupKey(key, key_len, go_cf)
 }
 
+func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
+	key_len int64, gocolfamily string) int {
+
+	//typecast go string to C char *
+	cf := GoToCString(gocolfamily)
+
+	C_key := GoToCString(key)
+	log.Trace("Writing key to db :", key)
+	C_key_len := GoToCSize_t(key_len)
+
+	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
+
+	cf_handle := C.PmdbCfHandleLookup(cf)
+
+	//Calling pmdb library function to write Key-Value.
+	rc := C.PmdbDeleteKV(capp_id, pmdb_handle, C_key, C_key_len, nil, unsafe.Pointer(cf_handle))
+	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
+	log.Trace("Seq Num for this write is - ", seqNum)
+	go_rc := int(rc)
+	if go_rc != 0 {
+		log.Error("PmdbWriteKV failed with error: ", go_rc)
+	}
+	//Free C memory
+	FreeCMem(cf)
+	FreeCMem(C_key)
+	return go_rc
+}
+
+// Public method of PmdbWriteKV
+func (*PmdbServerObject) DeleteKV(app_id unsafe.Pointer,
+	pmdb_handle unsafe.Pointer, key string, key_len int64, 
+	gocolfamily string) int {
+	return PmdbDeleteKV(app_id, pmdb_handle, key, key_len, gocolfamily)
+}
+
+
 func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	key_len int64, value string, value_len int64, gocolfamily string) int {
 
