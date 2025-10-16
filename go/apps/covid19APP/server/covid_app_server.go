@@ -59,6 +59,7 @@ func main() {
 		RaftUuid:       cso.raftUuid,
 		PeerUuid:       cso.peerUuid,
 		PmdbAPI:        cso,
+		CoalescedWrite: true,
 	}
 
 	// Start the pmdb server
