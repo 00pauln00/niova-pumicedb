@@ -3,14 +3,15 @@ package httpclient
 import (
 	"bytes"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func service_Request(request *http.Request) ([]byte, error) {
 
-	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	request.Header.Set("Content-Type", "application/json")
 	httpClient := &http.Client{}
 
 	response, err := httpClient.Do(request)
