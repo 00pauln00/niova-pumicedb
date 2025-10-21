@@ -437,7 +437,7 @@ pmdb_prep_obj_write(struct raft_net_sm_write_supplements *ws,
     PMDB_OBJ_DEBUG(LL_DEBUG, obj, "");
 
     raft_net_sm_write_supplement_add(
-        ws, RAFT_NET_WR_SUPP_OP_FLAG_WRITE,
+        ws, RAFT_NET_WR_SUPP_OP_WRITE,
         (void *)pmdb_get_rocksdb_column_family_handle(),
         NULL /* no callback needed yet */, PMDB_RNCUI_2_KEY(rncui),
         PMDB_ENTRY_KEY_LEN, (const char *)obj, sizeof(*obj));
@@ -1608,7 +1608,7 @@ PmdbWriteKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle,
 
     NIOVA_ASSERT(pah);
 
-    return raft_net_sm_write_supplement_add(pah->pah_ws, RAFT_NET_WR_SUPP_OP_FLAG_WRITE, 
+    return raft_net_sm_write_supplement_add(pah->pah_ws, RAFT_NET_WR_SUPP_OP_WRITE, 
                                             app_handle, comp_cb, key, key_len, value, value_len);
 }
 
@@ -1638,7 +1638,7 @@ PmdbDeleteKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle,
 
     NIOVA_ASSERT(pah);
 
-    return raft_net_sm_write_supplement_add(pah->pah_ws, RAFT_NET_WR_SUPP_OP_FLAG_DELETE, 
+    return raft_net_sm_write_supplement_add(pah->pah_ws, RAFT_NET_WR_SUPP_OP_DELETE, 
                                             app_handle, comp_cb, key, key_len, NULL, 0);
 }
 
