@@ -230,10 +230,10 @@ func (handler *proxyHandler) start_SerfAgent() error {
 	return err
 }
 
-//Write callback definition for HTTP server
-func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) error {
+//Put callback definition for HTTP server
+func (handler *proxyHandler) PutCallBack(rncui string, request []byte, response *[]byte) error {
 	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
-	rncui := fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
+	rncui = fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
 	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:    rncui,
 		Request:  request,
@@ -254,7 +254,7 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 }
 
 //Read call definition for HTTP server
-func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
+func (handler *proxyHandler) GetCallBack(request []byte, response *[]byte) error {
 
 	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:      "",
@@ -270,8 +270,8 @@ func (handler *proxyHandler) start_HTTPServer() error {
 	handler.httpServerObj = httpServer.HTTPServerHandler{}
 	handler.httpServerObj.Addr = handler.addr
 	handler.httpServerObj.PortRange = handler.portRange
-	handler.httpServerObj.PUTHandler = handler.WriteCallBack
-	handler.httpServerObj.GETHandler = handler.ReadCallBack
+	handler.httpServerObj.PutKVHandler = handler.PutCallBack
+	handler.httpServerObj.GetKVHandler = handler.GetCallBack
 	handler.httpServerObj.HTTPConnectionLimit, _ = strconv.Atoi(handler.limit)
 	handler.httpServerObj.PMDBServerConfig = handler.PMDBServerConfigByteMap
 	handler.httpServerObj.RecvdPort = &RecvdPort
