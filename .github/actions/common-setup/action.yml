@@ -96,6 +96,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
+       ref: recipe/coaleseced_writes
        path: ./holon
 
     - name: Copy holon repo
