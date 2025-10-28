@@ -7,6 +7,8 @@ import (
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"os"
+	"encoding/gob"
+	"bytes"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -112,6 +114,11 @@ func (handler *pmdbServerHandler) parseArgs() (*NiovaKVServer, error) {
 	return nso, err
 }
 
+func appdecode(payload []byte, op interface{}) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(payload))
+	return dec.Decode(op)
+}
+
 type NiovaKVServer struct {
 	raftUuid       string
 	peerUuid       string
@@ -134,7 +141,7 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	// Decode the input buffer into structure format
 	applyNiovaKV := &requestResponseLib.KVRequest{}
 
-	decodeErr := nso.pso.DecodeApplicationReq(applyArgs.Payload, applyNiovaKV)
+	decodeErr := appdecode(applyArgs.Payload, applyNiovaKV)
 	if decodeErr != nil {
 		log.Error("Failed to decode the application data")
 		return -1
@@ -151,7 +158,7 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	valLen := len(byteToStr)
 
 	log.Trace("Write the KeyValue by calling PmdbWriteKV")
-	rc := nso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
+	rc := PumiceDBServer.PmdbWriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
 		applyNiovaKV.Key,
 		int64(keyLength), byteToStr,
 		int64(valLen), colmfamily)
@@ -165,7 +172,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Decode the request structure sent by client.
 	reqStruct := &requestResponseLib.KVRequest{}
-	decodeErr := nso.pso.DecodeApplicationReq(readArgs.Payload, reqStruct)
+	decodeErr := appdecode(readArgs.Payload, reqStruct)
 
 	if decodeErr != nil {
 		log.Error("Failed to decode the read request")
@@ -178,8 +185,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Trace("Key length: ", keyLen)
 
 	//Pass the work as key to PmdbReadKV and get the value from pumicedb
-	readResult, readErr := nso.pso.ReadKV(readArgs.UserID, reqStruct.Key,
-		int64(keyLen), colmfamily)
+	readResult, readErr := PumiceDBServer.PmdbReadKV(reqStruct.Key, int64(keyLen), colmfamily)
 	var valType []byte
 	var replySize int64
 	var copyErr error
