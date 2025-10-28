@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"syscall"
 	"unsafe"
+	gopointer "github.com/mattn/go-pointer"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +16,13 @@ import (
 #cgo LDFLAGS: -lniova -lniova_raft_client -lniova_pumice_client
 #include <pumice/pumice_db_client.h>
 #include <pumice/pumice_db_net.h>
+extern void PmdbAsyncReqCompletionCB(void *args, ssize_t size);
+static void CPmdbAsyncCompletionCB(void *args, ssize_t size) {
+	PmdbAsyncReqCompletionCB(args, size);
+}
+static inline pmdb_user_cb_t getAsyncReqCompCB() {
+    return &CPmdbAsyncCompletionCB;
+}
 */
 import "C"
 
@@ -170,27 +178,48 @@ func (pco *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 		C.int(unsafe.Sizeof(leader_info.rcli_leader_uuid))))
 }
 
+//export PmdbAsyncReqCompletionCB
+func PmdbAsyncReqCompletionCB(args unsafe.Pointer, size C.ssize_t) {
+	ch := gopointer.Restore(args).(*chan int)
+	*ch <- 1
+}
+
 // Call the pmdb C library function to write the application data.
 // If application expects response on write operation,
 // get_response should be 1
 func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
 	get_response C.int, replySize *int64) (unsafe.Pointer, error) {
 
-	var stat C.pmdb_obj_stat_t
-
+	
+	var rncui_id C.struct_raft_net_client_user_id
 	rncuiStrC := GoToCString(rncui)
 	defer FreeCMem(rncuiStrC)
-
-	var rncui_id C.struct_raft_net_client_user_id
-
 	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
 
-	rc := C.PmdbObjPut(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
-		obj, GoToCSize_t(len), get_response, &stat)
+	//To respect CGO memory invarients of 2nd level pointers
+	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	defer C.free(unsafe.Pointer(stat))
+
+	//Get the completion callback function pointer
+	reqComplCh := make(chan int, 1)
+	defer close(reqComplCh)
+	args := gopointer.Save(&reqComplCh)
+	defer gopointer.Unref(args)
+	cb := C.getAsyncReqCompCB()
+
+	var pmdb_req_opt C.pmdb_request_opts_t
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, get_response, stat, cb, args, 
+								nil, 0, 0);
+
+	rc := C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
+		obj, GoToCSize_t(len), &pmdb_req_opt)
 
 	if rc != 0 {
 		return nil, fmt.Errorf("PmdbObjPut(): %d", rc)
 	}
+
+	//Await for the request response!
+	<-reqComplCh
 
 	get_response_go := int(get_response)
 	if get_response_go == 1 {
@@ -208,16 +237,34 @@ func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 
 	rncuiStrC := GoToCString(rncui)
 	defer FreeCMem(rncuiStrC)
-
 	var rncui_id C.struct_raft_net_client_user_id
-
 	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
 
-	var vsize C.size_t
+	//To respect CGO memory invarients of 2nd level pointers
+	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	defer C.free(unsafe.Pointer(stat))
 
-	reply_buf :=
-		C.PmdbObjGet(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
-			obj, GoToCSize_t(len), &vsize)
+	//Get the completion callback function pointer
+	reqComplCh := make(chan int, 1)
+	defer close(reqComplCh)
+	args := gopointer.Save(&reqComplCh)
+	defer gopointer.Unref(args)
+	cb := C.getAsyncReqCompCB()
+
+	var pmdb_req_opt C.pmdb_request_opts_t
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args, 
+								nil, 0, 0);
+
+	rc := C.PmdbObjGetX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
+			obj, GoToCSize_t(len), &pmdb_req_opt)
+	if rc != 0 {
+		return nil, fmt.Errorf("PmdbObjGetX(): %d", rc)
+	}
+
+	<-reqComplCh
+
+	vsize := stat.reply_size
+	reply_buf := stat.reply_buffer
 
 	if reply_buf == nil {
 		*replySize = 0
@@ -234,9 +281,30 @@ func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 func (pco *PmdbClientObj) get_any(obj *C.char, len int64,
 	replySize *int64) (unsafe.Pointer, error) {
 
-	var vsize C.size_t
+	//To respect CGO memory invarients of 2nd level pointers
+	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	defer C.free(unsafe.Pointer(stat))
 
-	reply_buf := C.PmdbObjGetAny(pco.pmdb, obj, GoToCSize_t(len), &vsize)
+	//Get the completion callback function pointer
+	reqComplCh := make(chan int, 1)
+	defer close(reqComplCh)
+	args := gopointer.Save(&reqComplCh)
+	defer gopointer.Unref(args)
+	cb := C.getAsyncReqCompCB()
+
+	var pmdb_req_opt C.pmdb_request_opts_t
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args, 
+								nil, 0, 0);
+
+	rc := C.PmdbObjGetAnyX(pco.pmdb, obj, GoToCSize_t(len), &pmdb_req_opt)
+	if rc != 0 {
+		return nil, fmt.Errorf("PmdbObjGetAnyX(): %d", rc)
+	}
+
+	<-reqComplCh
+
+	vsize := stat.reply_size
+	reply_buf := stat.reply_buffer
 
 	if reply_buf == nil {
 		*replySize = 0

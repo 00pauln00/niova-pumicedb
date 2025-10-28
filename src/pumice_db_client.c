@@ -576,6 +576,22 @@ PmdbObjGetAny(pmdb_t pmdb, const char *key, size_t key_size, size_t *value_size)
     return PmdbObjGet(pmdb, obj_id, key, key_size, value_size);
 }
 
+int
+PmdbObjGetAnyX(pmdb_t pmdb, const char *key, size_t key_size, 
+               pmdb_request_opts_t *pmdb_req_opt)
+{
+    /* Use increamented atomic variable */
+    struct raft_net_client_user_id rncui = {.rncui_version = 0};
+
+    int rc = pmdb_rncui_set_read_any(&rncui);
+    if (rc)
+        return rc;
+
+    pmdb_obj_id_t *obj_id = (pmdb_obj_id_t *)(&rncui.rncui_key);
+
+    return PmdbObjGetX(pmdb, obj_id, key, key_size, pmdb_req_opt);
+}
+
 /**
  * pmdb_obj_id_cb - essential cb function which is passed into
  *    raft_client_init().  The role of this cb is to translate the private

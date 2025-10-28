@@ -32,6 +32,10 @@ PmdbObjGetAny(pmdb_t pmdb, const char *key,
               size_t key_size, size_t *value_size);
 
 int
+PmdbObjGetAnyX(pmdb_t pmdb, const char *key, size_t key_size, 
+               pmdb_request_opts_t *pmdb_req_opt);
+               
+int
 PmdbObjLookupX(pmdb_t pmdb, const pmdb_obj_id_t *obj_id,
                pmdb_request_opts_t *pmdb_req);
 
