@@ -32,6 +32,7 @@ const char *raft_uuid_str;
 const char *my_uuid_str;
 
 #define KEY_PREFIX "key"
+#define MAX_KEY_INDEX 1000000000ULL
 
 #define PMDTS_ENTRY_KEY_LEN sizeof(struct raft_net_client_user_key_v0)
 #define PMDTS_RNCUI_2_KEY(rncui) (const char *)&(rncui)->rncui_key.v0
@@ -51,6 +52,98 @@ pmdbst_get_cfh(void)
     return pmdbts_cfh;
 }
 
+static int
+pmdbts_handle_logical_command(const struct raft_test_data_block *rtdb,
+                              const struct raft_net_client_user_id *app_id,
+                              void *pmdb_handle)
+{
+    // This logical command processing happens on all nodes during apply
+    char state[256];
+    struct random_data buf;
+    int32_t rand_val;
+    
+    // Initialize thread-safe random state with the seed from write_prep
+    if (initstate_r(rtdb->rtdb_random_seed, state, sizeof(state), &buf) != 0) {
+        SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state");
+        return -EINVAL;
+    }
+    
+    // Validate random number sequence - generate next two numbers for start index and increment value
+    random_r(&buf, &rand_val);
+    NIOVA_ASSERT((uint32_t)rand_val == rtdb->rtdb_validation_rand1);
+    
+    random_r(&buf, &rand_val);
+    NIOVA_ASSERT((uint32_t)rand_val == rtdb->rtdb_validation_rand2);
+    
+    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Using random_seed=%u", rtdb->rtdb_random_seed);
+    
+    uint64_t total_count = RAFT_NET_WR_SUPP_MAX - 4;
+    
+    // If validation passes I acknowledge that even the apply phase generated the same random numbers
+    uint64_t start_index = (rtdb->rtdb_validation_rand1 % (MAX_KEY_INDEX - total_count));
+    uint64_t end_index = start_index + total_count;
+    
+    uint64_t increment_value = (rtdb->rtdb_validation_rand2 % RAFT_NET_WR_SUPP_MAX) + 1;
+    
+    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Processing keys %lu to %lu (count=%lu) with increment_value=%lu", 
+                  start_index, end_index, total_count, increment_value);
+    
+    rocksdb_readoptions_t *read_opts = rocksdb_readoptions_create();
+    
+    for (uint64_t i = start_index; i <= end_index; i++) {
+        char key_name[32];
+        uint64_t current_value = 0;
+        uint64_t new_value = 0;
+        size_t value_len = 0;
+        
+        snprintf(key_name, sizeof(key_name), "%s%lu", KEY_PREFIX, i);
+        
+        // Read current value using direct RocksDB operations
+        char *err = NULL;
+        char *get_value = rocksdb_get_cf(PmdbGetRocksDB(), read_opts, 
+                                       pmdbst_get_cfh(),
+                                       key_name, strlen(key_name), 
+                                       &value_len, &err);
+        
+        if (get_value && !err && value_len == sizeof(uint64_t)) {
+            current_value = *(uint64_t*)get_value;
+            free(get_value);
+        } else if (err) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to read key %s: %s", key_name, err);
+            continue;
+        } else {
+            // Key doesn't exist, initialize with 0 (write on the fly)
+            current_value = 0;
+            SIMPLE_LOG_MSG(LL_DEBUG, "Key %s doesn't exist, initializing with 0", key_name);
+        }
+        
+        // Calculate new value (current + increment_value) with overflow protection
+        if (current_value > UINT64_MAX - increment_value) {
+            SIMPLE_LOG_MSG(LL_DEBUG, "LOGICAL_CMD: Preventing overflow for key %s: current=%lu, increment=%lu", 
+                          key_name, current_value, increment_value);
+            new_value = UINT64_MAX;  // Cap at maximum value
+        } else {
+            new_value = current_value + increment_value;
+        }
+        
+        // Write new value using PmdbWriteKV
+        int rc = PmdbWriteKV(app_id, pmdb_handle, key_name, 
+                           strlen(key_name),
+                           (const char*)&new_value, sizeof(new_value), 
+                           NULL, (void *)pmdbst_get_cfh());
+        
+        if (rc) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to write key %s: rc=%d", key_name, rc);
+        }
+    }
+    
+    rocksdb_readoptions_destroy(read_opts);
+    
+    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Completed processing keys %lu to %lu (count=%lu) with increment_value=%lu", 
+                  start_index, end_index, total_count, increment_value);
+    
+    return 0;
+}
 
 // Write preparation function - generates random number
 static pumicedb_write_prep_ctx_ssize_t
@@ -59,24 +152,46 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
     const void *input_buf = args->pcb_req_buf;
     size_t input_bufsz = args->pcb_req_bufsz;
     
-    // Check if this is a logical command using the new flag
-    if (input_bufsz >= sizeof(struct raft_test_data_block)) {
-        const struct raft_test_data_block *rtdb = 
-            (const struct raft_test_data_block *)input_buf;
-            
-        if (rtdb->rtdb_logical_cmd == true) {
-            // Generate a random seed for this logical command
-            uint32_t random_seed = rand();
-
-            // Store the random seed in the input buffer for apply to use
-            struct raft_test_data_block *input_rtdb = (struct raft_test_data_block *)input_buf;
-            input_rtdb->rtdb_random_seed = random_seed;
-            
-            SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u", random_seed);
-            
-            // Return 0 to continue with normal processing
-            return 0;
+    if (input_bufsz < sizeof(struct raft_test_data_block)) {
+        return -EINVAL;
+    }
+    
+    const struct raft_test_data_block *rtdb = 
+        (const struct raft_test_data_block *)input_buf;
+        
+    if (rtdb->rtdb_logical_cmd == true) {
+        // NOTE: write_prep is only called on the leader, so seed generation happens here
+        char state[256];
+        struct random_data buf;
+        int32_t rand_val;
+        
+        // Generate a random seed for this logical command
+        uint32_t random_seed = rand();
+        
+        // Initialize thread-safe random state with the seed
+        if (initstate_r(random_seed, state, sizeof(state), &buf) != 0) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state");
+            return -EINVAL;
         }
+        
+        // Generate validation numbers using the same seed
+        random_r(&buf, &rand_val);
+        uint32_t validation_rand1 = (uint32_t)rand_val;
+        
+        random_r(&buf, &rand_val);
+        uint32_t validation_rand2 = (uint32_t)rand_val;
+
+        // Store the values in the input buffer for apply to use
+        struct raft_test_data_block *input_rtdb = (struct raft_test_data_block *)input_buf;
+        input_rtdb->rtdb_random_seed = random_seed;
+        input_rtdb->rtdb_validation_rand1 = validation_rand1;
+        input_rtdb->rtdb_validation_rand2 = validation_rand2;
+        
+        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u, validation=(%u,%u)", 
+                      random_seed, validation_rand1, validation_rand2);
+        
+        // Return 0 to continue with normal processing
+        return 0;
     }
     
     // Not a logical command, return 0 to continue with normal processing
@@ -265,96 +380,20 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
     size_t input_bufsz = args->pcb_req_bufsz;
     void *pmdb_handle = args->pcb_pmdb_handler;
 
-    // Check if this is a logical command using the new flag
-    if (input_bufsz >= sizeof(struct raft_test_data_block)) {
-        const struct raft_test_data_block *rtdb = 
-            (const struct raft_test_data_block *)input_buf;
-            
-        if (rtdb->rtdb_logical_cmd == true) {
-            // Get the random seed that was set in write_prep
-            uint32_t random_seed = rtdb->rtdb_random_seed;
-            
-            // Use the random seed to generate deterministic values
-            srand(random_seed);
-            
-            // Generate start_index (1 to 1 billion)
-            uint32_t start_index = (rand() % 1000000000) + 1;
-            
-            // Use the total number of keys from the macro, but leave space for other operations
-            uint32_t total_count = RAFT_NET_WR_SUPP_MAX - 4;
-            
-            // Calculate end_index with overflow protection
-            uint32_t end_index;
-            if (start_index > 1000000000 - total_count + 1) {
-                end_index = 1000000000;
-                start_index = end_index - total_count + 1;
-            } else {
-                end_index = start_index + total_count - 1;
-            }
-            
-            // Generate increment_value (1 to RAFT_NET_WR_SUPP_MAX)
-            uint32_t increment_value = (rand() % RAFT_NET_WR_SUPP_MAX) + 1;
-            
-            SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Processing keys %u to %u (count=%u) with increment_value=%u", 
-                          start_index, end_index, total_count, increment_value);
-            
-            // Read and update keys from start_index to end_index
-            for (uint32_t i = start_index; i <= end_index; i++) {
-                char key_name[32];
-                uint64_t current_value = 0;
-                uint64_t new_value = 0;
-                size_t value_len = 0;
+    if (input_bufsz < sizeof(struct raft_test_data_block)) {
+        return -EINVAL;
+    }
+    
+    const struct raft_test_data_block *rtdb = 
+        (const struct raft_test_data_block *)input_buf;
                 
-                snprintf(key_name, sizeof(key_name), "%s%u", KEY_PREFIX, i);
-                
-                // Read current value using direct RocksDB operations
-                rocksdb_readoptions_t *read_opts = rocksdb_readoptions_create();
-                char *err = NULL;
-                char *get_value = rocksdb_get_cf(PmdbGetRocksDB(), read_opts, 
-                                               pmdbst_get_cfh(),
-                                               key_name, strlen(key_name), 
-                                               &value_len, &err);
-                rocksdb_readoptions_destroy(read_opts);
-                
-                if (get_value && !err && value_len == sizeof(uint64_t)) {
-                    current_value = *(uint64_t*)get_value;
-                    free(get_value);
-                } else if (err) {
-                    SIMPLE_LOG_MSG(LL_ERROR, "Failed to read key %s: %s", key_name, err);
-                    continue;
-                } else {
-                    // Key doesn't exist, initialize with 0 (write on the fly)
-                    current_value = 0;
-                    SIMPLE_LOG_MSG(LL_DEBUG, "Key %s doesn't exist, initializing with 0", key_name);
-                }
-                
-                // Calculate new value (current + increment_value) with overflow protection
-                if (current_value > UINT64_MAX - increment_value) {
-                    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Preventing overflow for key %s: current=%lu, increment=%u", 
-                                  key_name, current_value, increment_value);
-                    new_value = UINT64_MAX;  // Cap at maximum value
-                } else {
-                    new_value = current_value + increment_value;
-                }
-                
-                // Write new value using PmdbWriteKV
-                int rc = PmdbWriteKV(app_id, pmdb_handle, key_name, 
-                                   strlen(key_name),
-                                   (const char*)&new_value, sizeof(new_value), 
-                                   NULL, (void *)pmdbst_get_cfh());
-                
-                if (rc) {
-                    SIMPLE_LOG_MSG(LL_ERROR, "Failed to write key %s: rc=%d", key_name, rc);
-                }
-            }
-            
-            SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Completed processing keys %u to %u (count=%u) with increment_value=%u", 
-                          start_index, end_index, total_count, increment_value);
+    if (rtdb->rtdb_logical_cmd == true) {
+        int rc = pmdbts_handle_logical_command(rtdb, app_id, pmdb_handle);
+        if (rc) {
+            return rc;
         }
     }
 
-    const struct raft_test_data_block *rtdb =
-        (const struct raft_test_data_block *)input_buf;
 
     struct raft_test_values stored_rtv;
     int rc = pmdbts_apply_lookup_and_check(app_id, input_buf, input_bufsz,
