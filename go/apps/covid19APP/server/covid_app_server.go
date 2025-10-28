@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"encoding/gob"
+	"bytes"
 
 	CovidAppLib "github.com/00pauln00/niova-pumicedb/go/apps/covid19APP/lib"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
@@ -120,6 +122,12 @@ func initLogger(cso *CovidServer) {
 	}
 }
 
+
+func appdecode(payload []byte, op interface{}) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(payload))
+	return dec.Decode(op)
+}
+
 type CovidServer struct {
 	raftUuid       string
 	peerUuid       string
@@ -141,7 +149,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	/* Decode the input buffer into structure format */
 	applyCovid := &CovidAppLib.CovidLocale{}
 
-	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, applyCovid)
+	decodeErr := appdecode(applyArgs.Payload, applyCovid)
 	if decodeErr != nil {
 		log.Error("Failed to decode the application data")
 		return -1
@@ -153,7 +161,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	keyLength := len(applyCovid.Location)
 
 	//Lookup the key first
-	prevResult, err := cso.pso.LookupKey(applyCovid.Location,
+	prevResult, err := PumiceDBServer.PmdbReadKV(applyCovid.Location,
 		int64(keyLength), colmfamily)
 
 	log.Info("Previous values of the covidData: ", prevResult)
@@ -183,7 +191,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	rc := cso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
+	rc := PumiceDBServer.PmdbWriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
 		applyCovid.Location,
 		int64(keyLength), covidDataVal,
 		int64(covidDataLen), colmfamily)
@@ -197,7 +205,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Decode the request structure sent by client.
 	reqStruct := &CovidAppLib.CovidLocale{}
-	decodeErr := cso.pso.DecodeApplicationReq(readArgs.Payload, reqStruct)
+	decodeErr := appdecode(readArgs.Payload, reqStruct)
 
 	if decodeErr != nil {
 		log.Error("Failed to decode the read request")
@@ -210,7 +218,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Key length: ", keyLen)
 
 	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
-	readRsult, readErr := cso.pso.ReadKV(readArgs.UserID, reqStruct.Location,
+	readRsult, readErr := PumiceDBServer.PmdbReadKV(reqStruct.Location,
 		int64(keyLen), colmfamily)
 
 	var splitValues []string
@@ -249,7 +257,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	// Decode the request to get the key
 	reqStruct := &CovidAppLib.CovidLocale{}
-	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, reqStruct)
+	decodeErr := appdecode(applyArgs.Payload, reqStruct)
 	if decodeErr != nil {
 		log.Error("Failed to decode the write request in FillReply")
 		return -1
@@ -259,7 +267,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	keyLen := len(key)
 
 	// Read the value from the DB
-	readRsult, readErr := cso.pso.ReadKV(applyArgs.UserID, key, int64(keyLen), colmfamily)
+	readRsult, readErr := PumiceDBServer.PmdbReadKV(key, int64(keyLen), colmfamily)
 	if readErr != nil {
 		log.Error("Failed to read value from DB in FillReply: ", readErr)
 		return -1

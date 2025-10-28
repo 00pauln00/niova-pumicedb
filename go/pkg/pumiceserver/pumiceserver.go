@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"reflect"
 	"strconv"
@@ -163,7 +162,7 @@ func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 	goCbArgs.AppDataSize = CToGoInt64(cargs.pcb_app_data_sz)
 	//Decode Pumice level request
 	request := &PumiceDBCommon.PumiceRequest{}
-	err := Decode(ReqBuf, request, ReqSize)
+	err := PumiceDBCommon.Decode(ReqBuf, request, ReqSize)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -355,33 +354,8 @@ func (pso *PmdbServerObject) Run() error {
 	return PmdbStartServer(pso)
 }
 
-// Export the common decode method via the server object
-// TODO: Remove it from PmdbServerObject
-func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
-	len int64) error {
-	return PumiceDBCommon.Decode(input, output, len)
-}
-
-func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(input))
-	for {
-		if err := dec.Decode(output); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func Decode(input unsafe.Pointer, output interface{},
-	len int64) error {
-	return PumiceDBCommon.Decode(input, output, len)
-}
-
 // search a key in RocksDB
-func PmdbLookupKey(key string, key_len int64,
+func PmdbReadKV(key string, key_len int64,
 	go_cf string) ([]byte, error) {
 
 	var goerr string
@@ -428,11 +402,6 @@ func PmdbLookupKey(key string, key_len int64,
 }
 
 // Public method of PmdbLookupKey
-func (*PmdbServerObject) LookupKey(key string, key_len int64,
-	go_cf string) ([]byte, error) {
-	return PmdbLookupKey(key, key_len, go_cf)
-}
-
 func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	key_len int64, gocolfamily string) int {
 
@@ -459,13 +428,6 @@ func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	FreeCMem(cf)
 	FreeCMem(C_key)
 	return go_rc
-}
-
-// Public method of PmdbWriteKV
-func (*PmdbServerObject) DeleteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string, key_len int64, 
-	gocolfamily string) int {
-	return PmdbDeleteKV(app_id, pmdb_handle, key, key_len, gocolfamily)
 }
 
 
@@ -503,32 +465,6 @@ func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	return go_rc
 }
 
-// Public method of PmdbWriteKV
-func (*PmdbServerObject) WriteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
-
-	return PmdbWriteKV(app_id, pmdb_handle, key, key_len, value, value_len,
-		gocolfamily)
-}
-
-func PmdbReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) ([]byte, error) {
-
-	go_value, err := PmdbLookupKey(key, key_len, gocolfamily)
-
-	//Get the result
-	return go_value, err
-}
-
-// Public method of PmdbReadKV
-func (*PmdbServerObject) ReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) ([]byte, error) {
-
-	return PmdbReadKV(app_id, key, key_len, gocolfamily)
-}
-
-// Methods for range iterator
 
 // Wrapper for rocksdb_iter_seek -
 // Seeks the passed iterator to the passed key or first key
@@ -722,12 +658,6 @@ func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
 }
 
 func RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
-}
-
-// Public method for range read KV
-func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
 	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
 	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
