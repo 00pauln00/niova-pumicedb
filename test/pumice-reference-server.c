@@ -9,6 +9,7 @@
 
 #include <time.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <rocksdb/c.h>
 
@@ -58,9 +59,12 @@ pmdbts_handle_logical_command(const struct raft_test_data_block *rtdb,
                               void *pmdb_handle)
 {
     // This logical command processing happens on all nodes during apply
-    char state[256];
+    char state[256] __attribute__((aligned(8)));
     struct random_data buf;
     int32_t rand_val;
+    
+    memset(state, 0, sizeof(state));
+    memset(&buf, 0, sizeof(buf));
     
     // Initialize thread-safe random state with the seed from write_prep
     if (initstate_r(rtdb->rtdb_random_seed, state, sizeof(state), &buf) != 0) {
@@ -161,20 +165,29 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
         
     if (rtdb->rtdb_logical_cmd == true) {
         // NOTE: write_prep is only called on the leader, so seed generation happens here
-        char state[256];
-        struct random_data buf;
-        int32_t rand_val;
-        
         // Generate a random seed for this logical command
         uint32_t random_seed = rand();
         
-        // Initialize thread-safe random state with the seed
+        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u", random_seed);
+        
+        // Generate validation numbers using initstate_r for deterministic behavior
+        // Use local buffer (not static) to avoid thread safety issues
+        char state[256] __attribute__((aligned(8)));
+        struct random_data buf;
+        int32_t rand_val;
+        
+        memset(state, 0, sizeof(state));
+        memset(&buf, 0, sizeof(buf));
+        
+        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: About to call initstate_r with seed=%u", random_seed);
+        
         if (initstate_r(random_seed, state, sizeof(state), &buf) != 0) {
-            SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state");
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state with seed=%u", random_seed);
             return -EINVAL;
         }
         
-        // Generate validation numbers using the same seed
+        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Successfully initialized random state");
+        
         random_r(&buf, &rand_val);
         uint32_t validation_rand1 = (uint32_t)rand_val;
         
