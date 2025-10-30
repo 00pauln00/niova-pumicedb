@@ -13,7 +13,6 @@ import (
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	gopointer "github.com/mattn/go-pointer"
-	uuid "github.com/satori/go.uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -725,35 +724,22 @@ func PmdbIsLeader() bool {
 	return bool(rc)
 }
 
-func PmdbInitRPCMsg(rcm *C.struct_raft_client_rpc_msg, dataSize uint32) {
+func pmdbInitRPCMsg(rcm *C.struct_raft_client_rpc_msg, dataSize uint32) {
 	rcm.rcrm_type = C.RAFT_CLIENT_RPC_MSG_TYPE_WRITE
 	rcm.rcrm_version = 0
 	rcm.rcrm_data_size = C.uint32_t(dataSize)
 }
 
-func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
-	var appBuf bytes.Buffer
+func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string) int {
 	var req PumiceDBCommon.PumiceRequest
-	var rncui_id C.struct_raft_net_client_user_id
-	var obj_id *C.pmdb_obj_id_t
-
-	//Encode the application request structure.
-	enc := gob.NewEncoder(&appBuf)
-	err := enc.Encode(appReq)
-	if err != nil {
-		log.Error("Failed to encode the stale lease processing request")
-		return -1
-	}
-
-	uuid := uuid.NewV4().String()
-	req.Rncui = fmt.Sprintf("%s:0:0:0:0", uuid)
-	req.ReqType = PumiceDBCommon.LEASE_REQ
-	req.ReqPayload = appBuf.Bytes()
+	req.Rncui = rncui
+	req.ReqType = rtype
+	req.ReqPayload = areq
 
 	//Encode the PumiceRequest
 	var reqBuf bytes.Buffer
 	pumiceEnc := gob.NewEncoder(&reqBuf)
-	err = pumiceEnc.Encode(req)
+	err := pumiceEnc.Encode(req)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -776,15 +762,19 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 	//total size of the request buffer
 	totalSize := int64(rmsize) + int64(pmsize) + dsize
 	buf := C.malloc(C.size_t(totalSize))
+	defer C.free(buf)
+
 
 	//Populate raft_client_rpc_msg structure
 	rcm := (*C.struct_raft_client_rpc_msg)(buf)
-	PmdbInitRPCMsg(rcm, uint32(pmdSize))
+	pmdbInitRPCMsg(rcm, uint32(pmdSize))
 
 	// Get the pointer for rcrm_data
 	rptr := unsafe.Pointer(uintptr(buf) + C.sizeof_struct_raft_client_rpc_msg)
 
 	//Prepare pmdb_obj_id
+	var rncui_id C.struct_raft_net_client_user_id
+	var obj_id *C.pmdb_obj_id_t
 	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
 	obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
 
@@ -798,7 +788,6 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 
 	//Enqueue the direct request
 	ret := C.raft_server_enq_direct_raft_req_from_leader((*C.char)(buf), C.int64_t(totalSize))
-	C.free(buf)
 
 	return int(ret)
 }
