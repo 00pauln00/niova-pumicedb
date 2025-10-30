@@ -7,9 +7,11 @@ import (
 	"errors"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 	"sync"
+	"fmt"
 	"time"
 	"unsafe"
 )
@@ -584,8 +586,22 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 
 	//Send Request
 	log.Trace("Send stale lease processing request")
-	err := PumiceDBServer.PmdbEnqueueDirectWriteRequest(r)
-	return err
+
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(r)
+	if err != nil {
+		log.Error(err)
+		return -1
+	}
+	//XXX We use random RNCUI till we define its scope
+	uuid := uuid.NewV4().String()
+    rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
+	PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui)
+	if err != nil {
+		log.Error(err)
+	}
+	return -1
 }
 
 func (lso *LeaseServerObject) leaseGarbageCollector() {
