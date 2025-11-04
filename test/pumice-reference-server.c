@@ -33,7 +33,7 @@ const char *raft_uuid_str;
 const char *my_uuid_str;
 
 #define KEY_PREFIX "key"
-#define MAX_KEY_INDEX 1000000000ULL
+#define MAX_KEY_INDEX 100000000000ULL
 
 #define PMDTS_ENTRY_KEY_LEN sizeof(struct raft_net_client_user_key_v0)
 #define PMDTS_RNCUI_2_KEY(rncui) (const char *)&(rncui)->rncui_key.v0
@@ -66,20 +66,29 @@ pmdbts_handle_logical_command(const struct raft_test_data_block *rtdb,
     memset(state, 0, sizeof(state));
     memset(&buf, 0, sizeof(buf));
     
+    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Using random_seed=%u", rtdb->rtdb_random_seed);
+
     // Initialize thread-safe random state with the seed from write_prep
     if (initstate_r(rtdb->rtdb_random_seed, state, sizeof(state), &buf) != 0) {
         SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state");
         return -EINVAL;
     }
     
-    // Validate random number sequence - generate next two numbers for start index and increment value
+    // Validate random number sequence - generate 64-bit random numbers for start index and increment value
+    // Generate first 64-bit number (validation_rand1) from two 32-bit randoms
     random_r(&buf, &rand_val);
-    NIOVA_ASSERT((uint32_t)rand_val == rtdb->rtdb_validation_rand1);
-    
+    uint64_t validation_rand1 = ((uint64_t)(uint32_t)rand_val) << 32;
     random_r(&buf, &rand_val);
-    NIOVA_ASSERT((uint32_t)rand_val == rtdb->rtdb_validation_rand2);
+    validation_rand1 |= (uint32_t)rand_val;
+    NIOVA_ASSERT(validation_rand1 == rtdb->rtdb_validation_rand1);
     
-    SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Using random_seed=%u", rtdb->rtdb_random_seed);
+    // Generate second 64-bit number (validation_rand2) from two 32-bit randoms
+    random_r(&buf, &rand_val);
+    uint64_t validation_rand2 = ((uint64_t)(uint32_t)rand_val) << 32;
+    random_r(&buf, &rand_val);
+    validation_rand2 |= (uint32_t)rand_val;
+    NIOVA_ASSERT(validation_rand2 == rtdb->rtdb_validation_rand2);
+    
     
     uint64_t total_count = RAFT_NET_WR_SUPP_MAX - 4;
     
@@ -165,8 +174,8 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
         
     if (rtdb->rtdb_logical_cmd == true) {
         // NOTE: write_prep is only called on the leader, so seed generation happens here
-        // Generate a random seed for this logical command
-        uint32_t random_seed = rand();
+        // Generate a 32-bit random seed for this logical command
+        uint32_t random_seed = (uint32_t)rand();
         
         SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u", random_seed);
         
@@ -188,11 +197,17 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
         
         SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Successfully initialized random state");
         
+        // Generate first 64-bit random number from two 32-bit randoms
         random_r(&buf, &rand_val);
-        uint32_t validation_rand1 = (uint32_t)rand_val;
+        uint64_t validation_rand1 = ((uint64_t)(uint32_t)rand_val) << 32;
+        random_r(&buf, &rand_val);
+        validation_rand1 |= (uint32_t)rand_val;
         
+        // Generate second 64-bit random number from two 32-bit randoms
         random_r(&buf, &rand_val);
-        uint32_t validation_rand2 = (uint32_t)rand_val;
+        uint64_t validation_rand2 = ((uint64_t)(uint32_t)rand_val) << 32;
+        random_r(&buf, &rand_val);
+        validation_rand2 |= (uint32_t)rand_val;
 
         // Store the values in the input buffer for apply to use
         struct raft_test_data_block *input_rtdb = (struct raft_test_data_block *)input_buf;
@@ -200,7 +215,7 @@ pmdbts_write_prep(struct pumicedb_cb_cargs *args)
         input_rtdb->rtdb_validation_rand1 = validation_rand1;
         input_rtdb->rtdb_validation_rand2 = validation_rand2;
         
-        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u, validation=(%u,%u)", 
+        SIMPLE_LOG_MSG(LL_WARN, "LOGICAL_CMD: Generated random_seed=%u, validation=(%lu,%lu)", 
                       random_seed, validation_rand1, validation_rand2);
         
         // Return 0 to continue with normal processing
