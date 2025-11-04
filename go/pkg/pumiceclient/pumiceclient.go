@@ -181,7 +181,7 @@ func (pco *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 //export PmdbAsyncReqCompletionCB
 func PmdbAsyncReqCompletionCB(args unsafe.Pointer, size C.ssize_t) {
 	ch := gopointer.Restore(args).(*chan int)
-	*ch <- 1
+	*ch <- int(size)
 }
 
 // Call the pmdb C library function to write the application data.
@@ -219,7 +219,10 @@ func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
 	}
 
 	//Await for the request response!
-	<-reqComplCh
+	err := <-reqComplCh
+	if err != 0 {
+		return nil, fmt.Errorf("PmdbObjPut(): %d", err)
+	}
 
 	get_response_go := int(get_response)
 	if get_response_go == 1 {
@@ -261,7 +264,10 @@ func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 		return nil, fmt.Errorf("PmdbObjGetX(): %d", rc)
 	}
 
-	<-reqComplCh
+	err := <-reqComplCh
+	if err != 0 {
+		return nil, fmt.Errorf("PmdbObjGetX(): %d", err)
+	}
 
 	vsize := stat.reply_size
 	reply_buf := stat.reply_buffer
@@ -301,7 +307,10 @@ func (pco *PmdbClientObj) get_any(obj *C.char, len int64,
 		return nil, fmt.Errorf("PmdbObjGetAnyX(): %d", rc)
 	}
 
-	<-reqComplCh
+	err := <-reqComplCh
+	if err != 0 {
+		return nil, fmt.Errorf("PmdbObjGetAnyX(): %d", err)
+	}
 
 	vsize := stat.reply_size
 	reply_buf := stat.reply_buffer
