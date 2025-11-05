@@ -131,6 +131,18 @@ pmdb_client_request_rw_completion(struct pmdb_client_request *pcreq,
         pcreq->pcreq_user_cb(pcreq->pcreq_user_arg, status);
 }
 
+/*
+pumice_client_error_handler processes errors received
+from the pumice server and the raft layer.
+*/
+ssize_t pumice_client_error_handler(ssize_t status) {
+    switch (status) {
+        default:
+            SIMPLE_LOG_MSG(LL_ERROR, "");
+            return status;
+    }
+}
+
 /**
  * pmdb_client_request_cb - called from 'sa' destructor context.
  * @arg:  opaque pointer to pmdb_client_request
@@ -164,6 +176,9 @@ pmdb_client_request_cb(void *arg, ssize_t status, void *reply_buff)
         else
             status = 0; // success
     }
+
+    if (status)
+        status = pumice_client_error_handler(status);
 
     switch (pcreq->pcreq_op)
     {
