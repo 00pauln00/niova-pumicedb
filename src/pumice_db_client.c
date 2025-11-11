@@ -564,7 +564,7 @@ PmdbObjGet(pmdb_t pmdb, const pmdb_obj_id_t *obj_id, const char *key,
 void *
 PmdbObjGetAny(pmdb_t pmdb, const char *key, size_t key_size, size_t *value_size)
 {
-    /* Use increamented atomic variable */
+    /* Use incremented atomic variable */
     struct raft_net_client_user_id rncui = {.rncui_version = 0};
 
     int rc = pmdb_rncui_set_read_any(&rncui);
