@@ -13,6 +13,11 @@ jobs:
     - uses: actions/checkout@v4
     - uses: ./.github/actions/common-setup
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+
     - name: Copy script to run recipes
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
