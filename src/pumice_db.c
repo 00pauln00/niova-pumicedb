@@ -819,6 +819,7 @@ pumicedb_init_cb_args(const struct raft_net_client_user_id *app_id,
                       enum raft_init_state_type init_state,
                       int *continue_wr, void *pmdb_handler,
                       void *user_data, const void *app_data, size_t app_data_sz,
+                      uint64_t apply_handler_version,
                       struct pumicedb_cb_cargs *args)
 {
     args->pcb_userid = app_id;
@@ -832,6 +833,7 @@ pumicedb_init_cb_args(const struct raft_net_client_user_id *app_id,
     args->pcb_user_data = user_data;
     args->pcb_app_data = app_data;
     args->pcb_app_data_sz = app_data_sz;
+    args->pcb_apply_handler_version = apply_handler_version;
 }
 
 static int
@@ -865,6 +867,7 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
                           pmdb_user_data,
                           rncr->rncr_app_data.rncr_app_data_ptr,
                           rncr->rncr_app_data.rncr_app_data_max_size,
+                          rncr->rncr_apply_handler_version,
                           &write_prep_cb_args);
 
     rc = pmdbApi->pmdb_write_prep(&write_prep_cb_args);
@@ -982,6 +985,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
                 max_reply_size, 0, &continue_wr, NULL,
                 pmdb_user_data, rncr->rncr_app_data.rncr_app_data_ptr,
                 rncr->rncr_app_data.rncr_app_data_max_size,
+                rncr->rncr_apply_handler_version,
                 &reply_cb_args);
 
             rc = pmdbApi->pmdb_fill_reply(&reply_cb_args);
@@ -1105,6 +1109,7 @@ pmdb_sm_handler_client_read(struct raft_net_client_request_handle *rncr)
                               pmdb_reply->pmdbrm_data, max_reply_size, 0,
                               NULL, NULL,
                               pmdb_user_data, NULL, 0,
+                              rncr->rncr_apply_handler_version,
                               &read_cb_args);
 
         // FIXME Get the current term value here.
@@ -1376,7 +1381,8 @@ pmdb_sm_handler_pmdb_sm_apply(const struct pmdb_msg *pmdb_req,
                           pmdb_req->pmdbrm_data_size, pmdb_reply ?
                           pmdb_reply->pmdbrm_data : NULL,
                           max_reply_size, 0, NULL, (void *)&pah,
-                          pmdb_user_data, app_data, app_data_sz, &apply_args);
+                          pmdb_user_data, app_data, app_data_sz,
+                          rncr->rncr_apply_handler_version, &apply_args);
 
 
     // Call into the application so it may emplace its own KVs.
@@ -1515,7 +1521,7 @@ pmdb_init_peer_handler(enum raft_init_state_type init_state)
     if (pmdbApi->pmdb_init)
     {
         pumicedb_init_cb_args(NULL, NULL, 0, NULL, 0, init_state, NULL, NULL,
-                              pmdb_user_data, NULL, 0,
+                              pmdb_user_data, NULL, 0, 0,
                               &init_leader_cb_args);
         pmdbApi->pmdb_init(&init_leader_cb_args);
     }
