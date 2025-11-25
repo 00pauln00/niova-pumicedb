@@ -57,7 +57,7 @@ runs:
         git submodule init
         git submodule update
         git fetch origin
-        git checkout debug/bulk-recovery
+        git checkout fix/bulk-recovery-rocksdb-assert
       shell: bash
 
 # niova-core submodule init
