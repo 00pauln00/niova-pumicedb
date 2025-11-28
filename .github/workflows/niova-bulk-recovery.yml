@@ -17,30 +17,6 @@ jobs:
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
-    - name: Create ssh key
-      run: >
-           ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
-    - name: Add key to auth file
-      run: >
-           cat ~/.ssh/id_rsa.pub | tee -a ~/.ssh/authorized_keys
-    - name: Allow localhost authentication
-      run: >
-           echo "NoHostAuthenticationForLocalhost yes" > ~/.ssh/config
-    - name: Ensure the owner of the key is correct
-      run: |
-           chmod 600 ~/.ssh/authorized_keys
-           chmod 700 ~/.ssh
-           sudo chmod -c 0755 ~/
-           ls -la ~/.ssh
-    - name: Test SSH connection to localhost
-      run: >
-           ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
-
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
-
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
            ../run-recipes.sh '/home/runner/work/niovad/niovad/build_dir/holon'
