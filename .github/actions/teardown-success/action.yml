@@ -11,6 +11,15 @@ runs:
         echo "ARTIFACT_NAME=test-recipe-report_${{ github.sha }}_${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
       shell: bash
 
+    - name: Debug log folder
+      shell: bash
+      run: |
+        echo "Workspace: $GITHUB_WORKSPACE"
+        echo "[ls workspace]"
+        ls -al "$GITHUB_WORKSPACE"
+        echo "[ls holon_log]"
+        ls -al "$GITHUB_WORKSPACE/holon_log" || echo "holon_log NOT FOUND"
+
     - name: Archive the test results
       if: always()
       uses: actions/upload-artifact@v4
