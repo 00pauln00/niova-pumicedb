@@ -16,4 +16,4 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.prepare_artifact_filename.outputs.ARTIFACT_NAME }}
-        path: /home/runner/work/niovad/niovad/holon_log
+        path: ${{ github.workspace }}/holon_log
