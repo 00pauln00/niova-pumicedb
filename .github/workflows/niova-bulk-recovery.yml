@@ -13,10 +13,14 @@ jobs:
     - uses: actions/checkout@v4
     - uses: ./.github/actions/common-setup
 
+    - name: Copy script to run recipes
+      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
+           cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
+
     - name: Create ssh key
       run: >
            ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
-           
+
     - name: Add key to auth file
       run: >
            cat ~/.ssh/id_rsa.pub | tee -a ~/.ssh/authorized_keys
@@ -43,10 +47,6 @@ jobs:
   
     - name: deebugger for bulk recovery
       uses: csexton/debugger-action@master
-
-    - name: Copy script to run recipes
-      run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
-           cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
