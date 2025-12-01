@@ -36,6 +36,12 @@ jobs:
            sudo chmod -c 0755 ~/
            ls -la ~/.ssh
 
+    - name: Add localhost host key to known_hosts
+      run: |
+           ssh-keyscan -H localhost >> ~/.ssh/known_hosts
+           ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
+           chmod 644 ~/.ssh/known_hosts
+
     - name: Test SSH connection to localhost
       run: >
            ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
