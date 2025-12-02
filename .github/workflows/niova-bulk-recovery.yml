@@ -20,49 +20,31 @@ jobs:
     # - name: Install SSH server
     #   run: sudo apt-get update && sudo apt-get install -y openssh-server
 
-    - name: Install SSH server
+    - name: Install and configure SSH server
       run: |
         sudo apt-get update
         sudo apt-get install -y openssh-server
-        sudo sed -i 's/#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-        sudo sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+        sudo ssh-keygen -A
+
+        sudo sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
         sudo service ssh restart
 
-    - name: Create SSH key
+    - name: Allow existing id_rsa.pub for localhost SSH
       run: |
         mkdir -p ~/.ssh
-        ssh-keygen -t ed25519 -f ~/.ssh/id_local -N ""
-        cat ~/.ssh/id_local.pub >> ~/.ssh/authorized_keys
-
-    - name: Fix SSH permissions
-      run: |
         chmod 700 ~/.ssh
-        chmod 600 ~/.ssh/authorized_keys
-        chmod 600 ~/.ssh/id_local
-        chmod 644 ~/.ssh/id_local.pub
-        sudo chmod 755 ~
 
-    - name: Add localhost to known_hosts
-      run: |
+        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+        chmod 600 ~/.ssh/authorized_keys
+
         ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
         ssh-keyscan -H localhost >> ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
 
-    - name: Create SSH config for localhost
-      run: |
-        cat > ~/.ssh/config <<EOF
-        Host localhost
-          HostName 127.0.0.1
-          User runner
-          IdentityFile ~/.ssh/id_local
-          StrictHostKeyChecking no
-          PasswordAuthentication no
-          PubkeyAuthentication yes
-        EOF
-        chmod 600 ~/.ssh/config
-
-    - name: Test SSH to localhost
-      run: ssh -vvv localhost 'echo "SSH OK"; id'
+    - name: Test SSH
+      run: ssh -vvv localhost "echo 'SSH OK'; id"
 
     # - name: Start SSH service
     #   run: sudo service ssh start
