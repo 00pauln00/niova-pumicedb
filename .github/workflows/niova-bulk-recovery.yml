@@ -20,15 +20,6 @@ jobs:
     - name: Install SSH server
       run: sudo apt-get update && sudo apt-get install -y openssh-server
 
-    - name: Start SSH service
-      run: sudo service ssh start
-
-    - name: Allow public key authentication
-      run: |
-            echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
-            echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config
-            sudo service ssh restart
-
     - name: Create ssh key
       run: >
            ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
@@ -47,6 +38,12 @@ jobs:
            chmod 700 ~/.ssh
            sudo chmod -c 0755 ~/
            ls -la ~/.ssh
+
+    - name: Allow public key authentication
+      run: |
+            echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+            echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config
+            sudo service ssh restart
 
     - name: Add localhost host key to known_hosts
       run: |
