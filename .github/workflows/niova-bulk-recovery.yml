@@ -17,72 +17,46 @@ jobs:
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
-    # - name: Install SSH server
-    #   run: sudo apt-get update && sudo apt-get install -y openssh-server
+    - name: Install SSH server
+      run: sudo apt-get update && sudo apt-get install -y openssh-server
 
-    - name: Install and configure SSH server
+    - name: Start SSH service
+      run: sudo service ssh start
+
+    - name: Allow public key authentication
       run: |
-        sudo apt-get update
-        sudo apt-get install -y openssh-server
+            echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+            echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config
+            sudo service ssh restart
 
-        sudo ssh-keygen -A
+    - name: Create ssh key
+      run: >
+           ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
 
-        sudo sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-        sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    - name: Add key to auth file
+      run: >
+           cat ~/.ssh/id_rsa.pub | tee -a ~/.ssh/authorized_keys
 
-        sudo service ssh restart
+    - name: Allow localhost authentication
+      run: >
+           echo "NoHostAuthenticationForLocalhost yes" > ~/.ssh/config
 
-    - name: Allow existing id_rsa.pub for localhost SSH
+    - name: Ensure the owner of the key is correct
       run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
+           chmod 600 ~/.ssh/authorized_keys
+           chmod 700 ~/.ssh
+           sudo chmod -c 0755 ~/
+           ls -la ~/.ssh
 
-        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-        chmod 600 ~/.ssh/authorized_keys
+    - name: Add localhost host key to known_hosts
+      run: |
+           ssh-keyscan -H localhost >> ~/.ssh/known_hosts
+           ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
+           chmod 644 ~/.ssh/known_hosts
 
-        ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
-        ssh-keyscan -H localhost >> ~/.ssh/known_hosts
-
-    - name: Test SSH
-      run: ssh -vvv localhost "echo 'SSH OK'; id"
-
-    # - name: Start SSH service
-    #   run: sudo service ssh start
-
-    # - name: Allow public key authentication
-    #   run: |
-    #         echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
-    #         echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config
-    #         sudo service ssh restart
-
-    # - name: Create ssh key
-    #   run: >
-    #        ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
-
-    # - name: Add key to auth file
-    #   run: >
-    #        cat ~/.ssh/id_rsa.pub | tee -a ~/.ssh/authorized_keys
-
-    # - name: Allow localhost authentication
-    #   run: >
-    #        echo "NoHostAuthenticationForLocalhost yes" > ~/.ssh/config
-
-    # - name: Ensure the owner of the key is correct
-    #   run: |
-    #        chmod 600 ~/.ssh/authorized_keys
-    #        chmod 700 ~/.ssh
-    #        sudo chmod -c 0755 ~/
-    #        ls -la ~/.ssh
-
-    # - name: Add localhost host key to known_hosts
-    #   run: |
-    #        ssh-keyscan -H localhost >> ~/.ssh/known_hosts
-    #        ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
-    #        chmod 644 ~/.ssh/known_hosts
-
-    # - name: Test SSH connection to localhost
-    #   run: >
-    #        ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
+    - name: Test SSH connection to localhost
+      run: >
+           ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
