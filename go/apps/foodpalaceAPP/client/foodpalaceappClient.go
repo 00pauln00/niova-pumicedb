@@ -13,6 +13,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"bytes"
+	"encoding/gob"
 	"time"
 
 	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
@@ -339,18 +341,19 @@ func (woexc *writeOne) exec() error {
 
 	var errorMsg error
 	var wrStrdtCmd foodpalaceRqOp
-	var replySize int64
 
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	enc.Encode(woexc.rq.foodpalaceData)
 	//Perform write operation.
-	reqArgs := &PumiceDBClient.PmdbReqArgs{
+	reqArgs := &PumiceDBClient.PmdbReq{
 		Rncui:       woexc.args[1],
-		ReqED:       woexc.rq.foodpalaceData,
-		ReplySize:   &replySize,
-		GetResponse: 0,
+		Request:	 request.Bytes(),
+		ReqType:	 PumiceDBCommon.APP_REQ,
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
-	_, err := woexc.rq.clientObj.Put(reqArgs)
+	err := woexc.rq.clientObj.Put(reqArgs)
 	if err != nil {
 		log.Error("Write key-value failed : ", err)
 		wrStrdtCmd.Status = -1
@@ -401,11 +404,17 @@ func (roe *readOne) exec() error {
 
 	var roerr error
 	//Perform read operation.
-	rop := &foodpalaceapplib.FoodpalaceData{}
-	reqArgs := &PumiceDBClient.PmdbReqArgs{
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	enc.Encode(roe.rq.foodpalaceData)
+
+	reply := make([]byte, 0)
+	reqArgs := &PumiceDBClient.PmdbReq{
 		Rncui:      "",
-		ReqED:      roe.rq.foodpalaceData,
-		ResponseED: rop,
+		Request:    request.Bytes(),
+		GetReply: 	1,
+		Reply: 		&reply,
+		ReqType: 	PumiceDBCommon.APP_REQ,
 	}
 
 	err := roe.rq.clientObj.Get(reqArgs)
@@ -415,6 +424,9 @@ func (roe *readOne) exec() error {
 		rdt.fillRo(roe)
 		roerr = errors.New("exec method for ReadOne Operation failed")
 	}
+	rop := &foodpalaceapplib.FoodpalaceData{}
+	dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+	dec.Decode(rop)
 	roe.displayAndFill(rop)
 	return roerr
 }
@@ -449,7 +461,6 @@ func (wme *writeMulti) exec() error {
 
 	var excerr error
 	var wrStrdata = &foodpalaceRqOp{}
-	var replySize int64
 
 	//Create a file for storing keys and rncui.
 	os.Create("keyRncuiData.txt")
@@ -461,7 +472,7 @@ func (wme *writeMulti) exec() error {
 		return err
 	}
 	defer file.Close()
-	var reqArgs PumiceDBClient.PmdbReqArgs
+	var reqArgs PumiceDBClient.PmdbReq
 	for i := 0; i < len(wme.multiReqdata); i++ {
 		//Generate app_uuid.
 		appUuid := uuid.NewV4().String()
@@ -477,12 +488,14 @@ func (wme *writeMulti) exec() error {
 		wme.rq.key = restIdStr
 		wme.rq.rncui = rncui
 
+		var request bytes.Buffer
+		enc := gob.NewEncoder(&request)
+		enc.Encode(wme.multiReqdata[i])
 		reqArgs.Rncui = rncui
-		reqArgs.ReqED = wme.multiReqdata[i]
-		reqArgs.ReplySize = &replySize
-		reqArgs.GetResponse = 0
+		reqArgs.Request = request.Bytes()
+		reqArgs.ReqType = PumiceDBCommon.APP_REQ
 
-		_, err := wme.rq.clientObj.Put(&reqArgs)
+		err := wme.rq.clientObj.Put(&reqArgs)
 		if err != nil {
 			log.Error("Pmdb Write failed.", err)
 			wrStrdata.Status = -1
@@ -550,16 +563,20 @@ func (rmp *readMulti) prepare() error {
 func (rme *readMulti) exec() error {
 	var rmexcerr error
 	var rmdte = &foodpalaceRqOp{}
-	var reqArgs *PumiceDBClient.PmdbReqArgs
 
 	if len(rme.rmData) == len(rme.rmRncui) {
 		for i := range rme.rmData {
 			//Perform read operation.
-			rmopDt := &foodpalaceapplib.FoodpalaceData{}
-			reqArgs = &PumiceDBClient.PmdbReqArgs{
+			var request bytes.Buffer
+			enc := gob.NewEncoder(&request)
+			enc.Encode(rme.rmData[i])
+			//Perform read operation.
+			reply := make([]byte, 0)
+			reqArgs := &PumiceDBClient.PmdbReq{
 				Rncui:      "",
-				ReqED:      rme.rmData[i],
-				ResponseED: rmopDt,
+				Request:    request.Bytes(),
+				Reply: 		&reply,
+				ReqType:	PumiceDBCommon.APP_REQ,
 			}
 			err := rme.rq.clientObj.Get(reqArgs)
 			if err != nil {
@@ -567,6 +584,10 @@ func (rme *readMulti) exec() error {
 				rmdte.fillRm(rme)
 				rmexcerr = errors.New("exec method for ReadOne Operation failed")
 			} else {
+				rmopDt := &foodpalaceapplib.FoodpalaceData{}
+				dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+				dec.Decode(rmopDt)
+				//Display output and fill the structure.
 				rme.displayAndFill(rmdte, rmopDt, i)
 			}
 		}
@@ -724,8 +745,9 @@ func main() {
 	initLogger()
 
 	//Create new client object.
-	clientObj := PumiceDBClient.PmdbClientNew(raftUuid, clientUuid)
-	if clientObj == nil {
+	clientObj, err := PumiceDBClient.PmdbClientNew(raftUuid, clientUuid)
+	if err != nil {
+		log.Error("Failed to create PMDB client: ", err)
 		return
 	}
 	log.Info("Starting client: ", clientUuid)

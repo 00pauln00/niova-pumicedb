@@ -91,10 +91,14 @@ func (handler *clientHandler) sendReq(req *requestResponseLib.KVRequest, write b
 	var pumiceReqByte bytes.Buffer
 	var validate bool
 
-	//TODO need to pass rncui ?
-	PumiceDBCommon.PrepareAppPumiceRequest(req, "", &pumiceReqByte)
+	enc := gob.NewEncoder(&pumiceReqByte)
+	err := enc.Encode(req)
+	if err != nil {
+		log.Error("Error encoding the request object ", err)
+	}
 
-	responseBytes, err := handler.clientAPIObj.Request(pumiceReqByte.Bytes(), "", write)
+	//Rncui will be filled at the proxy, but its good practice to send it from client. 
+	responseBytes, err := handler.clientAPIObj.Request(pumiceReqByte.Bytes(), "/app?rncui=0", write)
 
 	if err == nil {
 		var responseObj requestResponseLib.KVResponse

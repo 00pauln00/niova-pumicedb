@@ -18,10 +18,12 @@ type HTTPServerHandler struct {
 	//Exported
 	Addr                net.IP
 	Port                uint16
-	GETHandler          func([]byte, *[]byte) error
-	PUTHandler          func([]byte, *[]byte) error
-	ReadHandler         func(string, []byte, *[]byte, *http.Request) error
-	WriteHandler        func(string, string, []byte, *[]byte, *http.Request) error
+	GetKVHandler       func([]byte, *[]byte) error
+	PutKVHandler       func(string, []byte, *[]byte) error
+	GetLeaseHandler     func([]byte, *[]byte) error
+	PutLeaseHandler     func(string, []byte, *[]byte) error
+	GetFuncHandler      func(string, []byte, *[]byte, *http.Request) error
+	PutFuncHandler      func(string, string, []byte, *[]byte, *http.Request) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -115,7 +117,7 @@ func (handler *HTTPServerHandler) createStat(requestStatHandler *RequestStatus) 
 	return id
 }
 
-func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, reader *http.Request) {
+func (handler *HTTPServerHandler) kvHandler(writer http.ResponseWriter, reader *http.Request) {
 	var thisRequestStat RequestStatus
 	var id int64
 
@@ -137,12 +139,14 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 
 	//Handle the KV request
 	requestBytes, err := ioutil.ReadAll(reader.Body)
+	rncui := reader.URL.Query().Get("rncui")
+
 	switch reader.Method {
 	case "GET":
 		if handler.StatsRequired {
 			thisRequestStat.Status = "Processing"
 		}
-		err = handler.GETHandler(requestBytes, &result)
+		err = handler.GetKVHandler(requestBytes, &result)
 		read = true
 		fallthrough
 
@@ -151,7 +155,7 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 			if handler.StatsRequired {
 				thisRequestStat.Status = "Processing"
 			}
-			err = handler.PUTHandler(requestBytes, &result)
+			err = handler.PutKVHandler(rncui, requestBytes, &result)
 		}
 		if err == nil {
 			success = true
@@ -170,7 +174,64 @@ func (handler *HTTPServerHandler) kvRequestHandler(writer http.ResponseWriter, r
 	}
 }
 
-func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, reader *http.Request) {
+func (handler *HTTPServerHandler) leaseHandler(writer http.ResponseWriter, reader *http.Request) {
+	var thisRequestStat RequestStatus
+	var id int64
+
+	//Create stat for the request
+	if handler.StatsRequired {
+		id = handler.createStat(&thisRequestStat)
+	}
+
+	//HTTP connections limiter
+	handler.connectionLimiter <- 1
+	defer func() {
+		<-handler.connectionLimiter
+	}()
+
+	var success bool
+	var read bool
+	var result []byte
+	var err error
+
+	//Handle the KV request
+	requestBytes, err := ioutil.ReadAll(reader.Body)
+	rncui := reader.URL.Query().Get("rncui")
+
+	switch reader.Method {
+	case "GET":
+		if handler.StatsRequired {
+			thisRequestStat.Status = "Processing"
+		}
+		err = handler.GetLeaseHandler(requestBytes, &result)
+		read = true
+		fallthrough
+
+	case "PUT":
+		if !read {
+			if handler.StatsRequired {
+				thisRequestStat.Status = "Processing"
+			}
+			err = handler.PutLeaseHandler(rncui, requestBytes, &result)
+		}
+		if err == nil {
+			success = true
+		}
+
+		//Write the output to HTTP response buffer
+		writer.Write(result)
+
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+
+	//Update status
+	if handler.StatsRequired {
+		handler.updateStat(id, success, read)
+	}
+}
+
+func (handler *HTTPServerHandler) funcHandler(writer http.ResponseWriter, reader *http.Request) {
 	body, err := io.ReadAll(reader.Body)
 	if err != nil {
 		log.Error("Error reading request body: ", err)
@@ -185,9 +246,9 @@ func (handler *HTTPServerHandler) HTTPFuncHandler(writer http.ResponseWriter, re
 
 	switch reader.Method {
 	case "GET":
-		err = handler.ReadHandler(name, body, &response, reader)
+		err = handler.GetFuncHandler(name, body, &response, reader)
 	case "PUT":
-		err = handler.WriteHandler(name, rncui, body, &response, reader)
+		err = handler.PutFuncHandler(name, rncui, body, &response, reader)
 	}
 	if err != nil {
 		log.Error("Error in FuncHandler: ", err)
@@ -218,9 +279,11 @@ func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *
 	} else if reader.URL.Path == "/check" {
 		writer.Write([]byte("HTTP server in operation"))
 	} else if reader.URL.Path == "/func" {
-		handler.HTTPFuncHandler(writer, reader)
-	} else {
-		handler.kvRequestHandler(writer, reader)
+		handler.funcHandler(writer, reader)
+	} else if reader.URL.Path == "/app" {
+		handler.kvHandler(writer, reader)
+	} else if reader.URL.Path == "/lease" {
+		handler.leaseHandler(writer, reader)
 	}
 }
 
