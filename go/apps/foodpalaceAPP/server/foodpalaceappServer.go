@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"encoding/gob"
+	"bytes"
 
 	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
 	log "github.com/sirupsen/logrus"
@@ -55,6 +57,11 @@ func (fpso *FoodpalaceServer) initLogger() {
 	log.Info("peer:", fpso.peerUuid)
 }
 
+func appdecode(payload []byte, op interface{}) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(payload))
+	return dec.Decode(op)
+}
+
 //Method for Init callback
 func (fpso *FoodpalaceServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 	return
@@ -69,7 +76,7 @@ func (fpso *FoodpalaceServer) WritePrep(wrPreArgs *PumiceDBServer.PmdbCbArgs) in
 func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	data := &foodpalaceapplib.FoodpalaceData{}
-	fpso.pso.DecodeApplicationReq(applyArgs.Payload, data)
+	appdecode(applyArgs.Payload, data)
 	log.Info("Data received from client: ", data)
 
 	//Convert resturant_id from int to string and store as fp_app_key.
@@ -77,7 +84,7 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	appKeyLen := len(fpAppKey)
 
 	//Lookup for the key if it is already present.
-	prevValue, err := fpso.pso.LookupKey(fpAppKey, int64(appKeyLen), colmfamily)
+	prevValue, err := PumiceDBServer.PmdbReadKV(fpAppKey, int64(appKeyLen), colmfamily)
 
 	//If previous value is not null, update value of votes.
 	if err == nil {
@@ -98,7 +105,7 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	appValLen := len(fpAppValue)
 
 	//Write key,values.
-	rc := fpso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler, fpAppKey,
+	rc := PumiceDBServer.PmdbWriteKV(applyArgs.UserID, applyArgs.PmdbHandler, fpAppKey,
 		int64(appKeyLen), fpAppValue,
 		int64(appValLen), colmfamily)
 
@@ -114,7 +121,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	//Decode the request structure sent by client.
 	readReqData := &foodpalaceapplib.FoodpalaceData{}
 
-	fpso.pso.DecodeApplicationReq(readArgs.Payload, readReqData)
+	appdecode(readArgs.Payload, readReqData)
 
 	log.Info("Key passed by client: ", readReqData.RestaurantId)
 
@@ -122,7 +129,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	fappKey := strconv.Itoa(int(readReqData.RestaurantId))
 	fappKeyLen := len(fappKey)
 
-	result, readErr := fpso.pso.ReadKV(readArgs.UserID, fappKey,
+	result, readErr := PumiceDBServer.PmdbReadKV(fappKey,
 		int64(fappKeyLen), colmfamily)
 	if readErr == nil {
 		//Split the result to get respective values.

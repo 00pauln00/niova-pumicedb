@@ -7,9 +7,11 @@ import (
 	"errors"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 	"sync"
+	"fmt"
 	"time"
 	"unsafe"
 )
@@ -418,7 +420,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 	// Length of value.
 	valLen := len(byteToStr)
 	keyLength := len(handler.LeaseReq.Resource.String())
-	rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
+	rc := PumiceDBServer.PmdbWriteKV(handler.UserID, handler.PmdbHandler, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
 	if rc < 0 {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb")
@@ -471,7 +473,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 
 		byteToStr := string(valueBytes.Bytes())
 		valLen := len(byteToStr)
-		rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler,
+		rc := PumiceDBServer.PmdbWriteKV(handler.UserID, handler.PmdbHandler,
 			resource.String(), int64(len(resource.String())), byteToStr, int64(valLen),
 			handler.LeaseServerObj.LeaseColmFam)
 		if rc < 0 {
@@ -584,8 +586,22 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 
 	//Send Request
 	log.Trace("Send stale lease processing request")
-	err := PumiceDBServer.PmdbEnqueueDirectWriteRequest(r)
-	return err
+
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(r)
+	if err != nil {
+		log.Error(err)
+		return -1
+	}
+	//XXX We use random RNCUI till we define its scope
+	uuid := uuid.NewV4().String()
+    rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
+	PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui)
+	if err != nil {
+		log.Error(err)
+	}
+	return -1
 }
 
 func (lso *LeaseServerObject) leaseGarbageCollector() {
