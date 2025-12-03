@@ -97,6 +97,13 @@ type RangeReadResult struct {
 	SnapMiss  bool
 }
 
+type RangeOutput struct {
+	Result   []PumiceDBCommon.Data
+	LastKey  string
+	SeqNum   uint64
+	SnapMiss bool
+}
+
 const (
 	INIT_TYPE_NONE                int = 0
 	INIT_BOOTUP_STATE                 = 1
@@ -463,11 +470,10 @@ func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 
 // Public method of PmdbWriteKV
 func (*PmdbServerObject) DeleteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string, key_len int64, 
+	pmdb_handle unsafe.Pointer, key string, key_len int64,
 	gocolfamily string) int {
 	return PmdbDeleteKV(app_id, pmdb_handle, key, key_len, gocolfamily)
 }
-
 
 func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	key_len int64, value string, value_len int64, gocolfamily string) int {
@@ -642,6 +648,81 @@ func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map
 		lookup_err = nil
 	}
 	return resultMap, lastKey, lookup_err
+}
+
+func pmdbFetchRangeinSortedOrder(key string, key_len int64,
+	prefix string, bufSize int64, consistent bool, seq uint64, go_cf string) (*RangeOutput, error) {
+	var lookup_err error
+	res := &RangeOutput{
+		Result: make([]PumiceDBCommon.Data, 0),
+		SeqNum: seq,
+	}
+	var mapSize int
+	var itr *C.rocksdb_iterator_t
+	var ropts *C.rocksdb_readoptions_t
+	var endReached bool
+
+	log.Trace("RangeQuery - Key passed is: ", key, " Prefix passed is : ", prefix,
+		" Seq No passed is : ", res.SeqNum)
+
+	//Create ropts based on consistency and seqNum
+	ropts, res.SnapMiss = createRopts(consistent, &res.SeqNum)
+
+	// create iterator
+	cf := GoToCString(go_cf)
+	cf_handle := C.PmdbCfHandleLookup(cf)
+	itr = C.rocksdb_create_iterator_cf(C.PmdbGetRocksDB(), ropts, cf_handle)
+
+	//Seek to the provided key
+	seekTo(key, key_len, itr)
+
+	// Iterate over keys store them in map if prefix
+	for C.rocksdb_iter_valid(itr) != 0 {
+		fKey, fVal := getKeyVal(itr)
+		log.Trace("RangeQuery - Seeked to : ", fKey)
+
+		// check if passed key is prefix of fetched key or exit
+		if !strings.HasPrefix(fKey, prefix) {
+			endReached = true
+			break
+		}
+
+		// check if the key-val can be stored in the buffer
+		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
+		if (int64(mapSize) + int64(entrySize)) > bufSize {
+			log.Trace("RangeQuery -  Reply buffer is full - dumping map to client")
+			res.LastKey = fKey
+			break
+		}
+		mapSize = mapSize + entrySize + encodingOverhead
+		res.Result = append(res.Result, PumiceDBCommon.Data{Key: fKey, Value: string(fVal)})
+
+		C.rocksdb_iter_next(itr)
+	}
+
+	//Destroy ropts for consistent mode only when reached the end of the range query
+	//Wheras, destroy ropts in every iteration if the range query is not consistent
+	if C.rocksdb_iter_valid(itr) == 0 || endReached == true {
+		destroyRopts(res.SeqNum, ropts, consistent)
+	} else if !consistent {
+		destroyRopts(res.SeqNum, ropts, consistent)
+	}
+
+	//Free the iterator and memory
+	C.rocksdb_iter_destroy(itr)
+	FreeCMem(cf)
+
+	if len(res.Result) == 0 {
+		lookup_err = errors.New("Failed to lookup for key")
+	} else {
+		lookup_err = nil
+	}
+	return res, lookup_err
+}
+
+func SortedRangeRead(key string,
+	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeOutput, error) {
+	return pmdbFetchRangeinSortedOrder(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
 func pmdbFetchRange(key string, key_len int64,

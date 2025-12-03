@@ -51,6 +51,11 @@ type GossipInfo struct {
 	Ports  []uint16 `yaml:"ports"`
 }
 
+type Data struct {
+	Key   string
+	Value string
+}
+
 const (
 	APP_REQ     int = 0
 	LEASE_REQ       = 1
