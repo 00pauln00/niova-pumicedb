@@ -54,5 +54,5 @@ do
    fi
    echo "Recipe: $recipe completed successfully!"
    echo "##########################################################################recipe_name: $recipe#################################################################"
-   rm -rf $LOG_PATH/*
+   # rm -rf $LOG_PATH/*
 done
