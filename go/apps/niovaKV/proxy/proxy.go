@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/00pauln00/niova-pumicedb/go/apps/niovaKV/requestResponseLib"
@@ -183,9 +182,10 @@ func (handler *proxyHandler) startPMDBClient() error {
 	var err error
 
 	//Get client object.
-	handler.pmdbClientObj = pmdbClient.PmdbClientNew(handler.raftUUID.String(), handler.clientUUID.String())
-	if handler.pmdbClientObj == nil {
-		return errors.New("PMDB client object is empty")
+	handler.pmdbClientObj, err = pmdbClient.PmdbClientNew(handler.raftUUID.String(), handler.clientUUID.String())
+	if err != nil {
+		log.Error("Failed to create PMDB client: ", err)
+		return err
 	}
 
 	//Start pumicedb client.
@@ -230,18 +230,17 @@ func (handler *proxyHandler) start_SerfAgent() error {
 	return err
 }
 
-//Write callback definition for HTTP server
-func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) error {
+//Put callback definition for HTTP server
+func (handler *proxyHandler) PutCallBack(rncui string, request []byte, response *[]byte) error {
 	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
-	rncui := fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
-	var replySize int64
-	reqArgs := &pmdbClient.PmdbReqArgs{
-		Rncui:       rncui,
-		ReqByteArr:  request,
-		ReplySize:   &replySize,
-		GetResponse: 0,
+	rncui = fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
+	reqArgs := &pmdbClient.PmdbReq{
+		Rncui:    rncui,
+		Request:  request,
+		GetReply: 0,
+		ReqType:  PumiceDBCommon.APP_REQ,
 	}
-	err := handler.pmdbClientObj.PutEncoded(reqArgs)
+	err := handler.pmdbClientObj.Put(reqArgs)
 	if err != nil {
 		responseObj := requestResponseLib.KVResponse{
 			Status: 1,
@@ -255,14 +254,15 @@ func (handler *proxyHandler) WriteCallBack(request []byte, response *[]byte) err
 }
 
 //Read call definition for HTTP server
-func (handler *proxyHandler) ReadCallBack(request []byte, response *[]byte) error {
+func (handler *proxyHandler) GetCallBack(request []byte, response *[]byte) error {
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:      "",
-		ReqByteArr: request,
-		Response:   response,
+		Request: request,
+		Reply:   response,
+		ReqType: PumiceDBCommon.APP_REQ,
 	}
-	return handler.pmdbClientObj.GetEncoded(reqArgs)
+	return handler.pmdbClientObj.Get(reqArgs)
 }
 
 func (handler *proxyHandler) start_HTTPServer() error {
@@ -270,8 +270,8 @@ func (handler *proxyHandler) start_HTTPServer() error {
 	handler.httpServerObj = httpServer.HTTPServerHandler{}
 	handler.httpServerObj.Addr = handler.addr
 	handler.httpServerObj.PortRange = handler.portRange
-	handler.httpServerObj.PUTHandler = handler.WriteCallBack
-	handler.httpServerObj.GETHandler = handler.ReadCallBack
+	handler.httpServerObj.PutKVHandler = handler.PutCallBack
+	handler.httpServerObj.GetKVHandler = handler.GetCallBack
 	handler.httpServerObj.HTTPConnectionLimit, _ = strconv.Atoi(handler.limit)
 	handler.httpServerObj.PMDBServerConfig = handler.PMDBServerConfigByteMap
 	handler.httpServerObj.RecvdPort = &RecvdPort

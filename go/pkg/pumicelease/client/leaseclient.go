@@ -29,23 +29,9 @@ type LeaseClientReqHandler struct {
 	Err            error
 }
 
-func (lh *LeaseClientReqHandler) preparePumiceReq() error {
-	var err error
-	var pmdbReq PumiceDBCommon.PumiceRequest
-
-	var lrb bytes.Buffer
-	lEnc := gob.NewEncoder(&lrb)
-	err = lEnc.Encode(lh.LeaseReq)
-	if err != nil {
-		return err
-	}
-
-	pmdbReq.Rncui = uuid.NewV4().String() + ":0:0:0:0"
-	pmdbReq.ReqType = PumiceDBCommon.LEASE_REQ
-	pmdbReq.ReqPayload = lrb.Bytes()
-
-	pEnc := gob.NewEncoder(&lh.ReqBuff)
-	return pEnc.Encode(pmdbReq)
+func (lh *LeaseClientReqHandler) prepareReq() error {
+	enc := gob.NewEncoder(&lh.ReqBuff)
+	return enc.Encode(lh.LeaseReq)
 }
 
 /*
@@ -58,17 +44,15 @@ Description : Wrapper function for WriteEncoded() function
 func (co LeaseClient) write(obj *[]byte, rncui string,
 	response *[]byte) error {
 
-	var replySize int64
-
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:       rncui,
-		ReqByteArr:  *obj,
-		GetResponse: 1,
-		ReplySize:   &replySize,
-		Response:    response,
+		Request:  	 *obj,
+		GetReply: 	 1,
+		Reply:    	 response,
+		ReqType:	 PumiceDBCommon.LEASE_REQ,
 	}
 
-	return co.PmdbClientObj.PutEncoded(reqArgs)
+	return co.PmdbClientObj.Put(reqArgs)
 }
 
 /*
@@ -81,13 +65,14 @@ Description : Wrapper function for GetEncoded() function
 func (co LeaseClient) read(obj *[]byte, rncui string,
 	response *[]byte) error {
 
-	reqArgs := &pmdbClient.PmdbReqArgs{
+	reqArgs := &pmdbClient.PmdbReq{
 		Rncui:      rncui,
-		ReqByteArr: *obj,
-		Response:   response,
+		Request: 	*obj,
+		Reply:      response,
+		ReqType:	PumiceDBCommon.LEASE_REQ,
 	}
 
-	return co.PmdbClientObj.GetEncoded(reqArgs)
+	return co.PmdbClientObj.Get(reqArgs)
 }
 
 /*
@@ -135,7 +120,7 @@ func (lh *LeaseClientReqHandler) LeaseOperation() error {
 	var b []byte
 
 	// Prepare reqBytes for pumiceReq type
-	err = lh.preparePumiceReq()
+	err = lh.prepareReq()
 	if err != nil {
 		return err
 	}
@@ -179,7 +164,7 @@ func (lh *LeaseClientReqHandler) LeaseOperationOverHTTP() error {
 	var b []byte
 
 	// Prepare reqBytes for pumiceReq type
-	err = lh.preparePumiceReq()
+	err = lh.prepareReq()
 	if err != nil {
 		return err
 	}
@@ -188,7 +173,7 @@ func (lh *LeaseClientReqHandler) LeaseOperationOverHTTP() error {
 		isWrite = true
 	}
 	// send req
-	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), "", isWrite)
+	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), "/lease?rncui="+lh.Rncui, isWrite)
 	if err != nil {
 		return err
 	}
