@@ -55,6 +55,7 @@ struct pumicedb_cb_cargs
     */
     const void                           *pcb_app_data;
     size_t                                pcb_app_data_sz;
+    uint64_t                              pcb_apply_handler_version;
 };
 
 /**
