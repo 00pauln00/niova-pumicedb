@@ -96,6 +96,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
+       ref: recipe/atomicity_test
        path: ./holon
 
     - name: Copy holon repo
