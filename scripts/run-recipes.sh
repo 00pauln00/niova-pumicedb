@@ -16,6 +16,7 @@ export NIOVA_BIN_PATH="$BIN_PATH/libexec/niova"
 export CGO_LDFLAGS="-L$BIN_PATH/lib"
 export CGO_CFLAGS="-I$BIN_PATH/include/niova"
 export LD_LIBRARY_PATH="$BIN_PATH/lib"
+export NIOVA_APPLY_HANDLER_VERSION=0
 export PATH="$PATH:$GO_PATH"
 
 while IFS= read -r line; do
