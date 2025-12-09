@@ -52,7 +52,12 @@ runs:
 
 # niova-raft submodule init
     - name: submodule init (niova-raft)
-      run: cd modules/niova-raft && git submodule init && git submodule update
+      run: |
+        cd modules/niova-raft
+        git submodule init
+        git submodule update
+        git fetch origin
+        git checkout enhance/application-test-logic
       shell: bash
 
 # niova-core submodule init
