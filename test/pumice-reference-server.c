@@ -448,8 +448,8 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
         rc = apply_handler_v2(args);
         break;
     default:
-        SIMPLE_LOG_MSG(LL_ERROR, "Unknown handler version %lu", version);
-        return -EINVAL;
+        SIMPLE_LOG_MSG(LL_WARN, "Unknown handler version %lu", version);
+        break;
     }
 
     if (rc) {
