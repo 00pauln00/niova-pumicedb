@@ -3,11 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
-	lookout "github.com/00pauln00/niova-pumicedb/go/pkg/utils/ctlmonitor"
-	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
-	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
-	serfAgent "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfagent"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -21,6 +16,12 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
+	lookout "github.com/00pauln00/niova-pumicedb/go/pkg/utils/ctlmonitor"
+	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
+	serfAgent "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfagent"
+	serviceDiscovery "github.com/00pauln00/niova-pumicedb/go/pkg/utils/servicediscovery"
 
 	"github.com/google/uuid"
 )
@@ -67,7 +68,7 @@ type nisdMonitor struct {
 var RecvdPort int
 var SetTagsInterval int = 10
 
-//NISD
+// NISD
 type udpMessage struct {
 	addr    net.Addr
 	message []byte
@@ -103,7 +104,7 @@ func (handler *nisdMonitor) parseCMDArgs() {
 		usage(1)
 	}
 
-	if *showHelpShort == true || *showHelp == true {
+	if *showHelpShort || *showHelp {
 		usage(0)
 	}
 }
@@ -131,7 +132,7 @@ func fillNisdCStruct(UUID string, ipaddr string, port int) []byte {
 	return returnData
 }
 
-//NISD
+// NISD
 func (handler *nisdMonitor) getConfigNSend(udpInfo udpMessage) {
 	//Get uuid from the byte array
 	data := udpInfo.message
@@ -220,7 +221,7 @@ func (handler *nisdMonitor) getCompressedGossipDataNISD() map[string]string {
 	return returnMap
 }
 
-//NISD
+// NISD
 func (handler *nisdMonitor) setTags() {
 	for {
 		tagData := handler.getCompressedGossipDataNISD()
@@ -232,7 +233,7 @@ func (handler *nisdMonitor) setTags() {
 	}
 }
 
-//NISD
+// NISD
 func (handler *nisdMonitor) startClientAPI() {
 	//Init niovakv client API
 	handler.storageClient = serviceDiscovery.ServiceDiscoveryHandler{
@@ -250,7 +251,7 @@ func (handler *nisdMonitor) startClientAPI() {
 	handler.storageClient.TillReady("", 0)
 }
 
-//NISD
+// NISD
 func (handler *nisdMonitor) startUDPListner() {
 	var err error
 	handler.udpSocket, err = net.ListenPacket("udp", ":"+handler.udpPort)
@@ -296,7 +297,21 @@ func (handler *nisdMonitor) getPortRange() error {
 	dec := gob.NewDecoder(bytes.NewBuffer(responseBytes))
 	dec.Decode(&response)
 
-	err = handler.getConfigData(string(response.ResultMap[handler.raftUUID+"_Port_Range"]))
+	// Search through the slice to find the desired key
+	targetKey := handler.raftUUID + "_Port_Range"
+	var portRangeValue string
+	for _, entry := range response.Result {
+		if entry.Key == targetKey {
+			portRangeValue = string(entry.Value)
+			break
+		}
+	}
+
+	if portRangeValue == "" {
+		return fmt.Errorf("port range key not found: %s", targetKey)
+	}
+
+	err = handler.getConfigData(portRangeValue)
 	if err != nil {
 		fmt.Println("getConfigData - ", err)
 	}

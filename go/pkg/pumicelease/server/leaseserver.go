@@ -5,13 +5,14 @@ import (
 	list "container/list"
 	"encoding/gob"
 	"errors"
+	"sync"
+	"time"
+	"unsafe"
+
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
-	"sync"
-	"time"
-	"unsafe"
 )
 
 var ttlDefault = 15
@@ -49,7 +50,7 @@ type LeaseServerReqHandler struct {
 	PmdbHandler    unsafe.Pointer
 }
 
-//Helper functions
+// Helper functions
 func checkMajorCorrectness(currentTerm int64, leaseTerm int64) {
 	if currentTerm != leaseTerm {
 		log.Fatal("Major(Term) not matching")
@@ -550,24 +551,23 @@ func (lso *LeaseServerObject) leaderInit() {
 func (lso *LeaseServerObject) peerBootup(userID unsafe.Pointer) {
 	readResult, _, _ := lso.Pso.ReadAllKV(userID, "", 0, 0, lso.LeaseColmFam)
 
-	//Result of the read
-	for key, value := range readResult {
+	//Result of the read - now iterating over slice which preserves RocksDB sort order
+	for _, entry := range readResult {
 		//Decode the request structure sent by client.
 		var leaseInfo leaseLib.LeaseInfo
-		dec := gob.NewDecoder(bytes.NewBuffer(value))
+		dec := gob.NewDecoder(bytes.NewBuffer(entry.Value))
 		decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
 		if decodeErr != nil {
 			log.Error("Failed to decode the read request : ", decodeErr)
 			return
 		}
-		kuuid, _ := uuid.FromString(key)
+		kuuid, _ := uuid.FromString(entry.Key)
 		lso.LeaseMap[kuuid] = &leaseInfo
 		if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
 			leaseInfo.ListElement = &list.Element{}
 			leaseInfo.ListElement.Value = &leaseInfo
 			lso.listOperation(&leaseInfo, PUSH, false)
 		}
-		delete(readResult, key)
 	}
 }
 
