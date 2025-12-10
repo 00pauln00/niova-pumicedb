@@ -24,9 +24,10 @@ jobs:
            ../run-recipes.sh '/home/runner/work/niovad/niovad/build_dir/holon' \
                              '/home/runner/work/niovad/niovad/build_dir' \
                              '/home/runner/work/niovad/niovad/holon_log' \
-                              5 \
+                             5 \
                              '/home/runner/work/niovad/niovad/build_dir/lease_recipes.txt' \
                              'lease' \
+                             0 \
                              '/home/runner/work/go/go/bin'
 
     - uses: ./.github/actions/teardown-success
