@@ -33,6 +33,11 @@ extern ssize_t fillReplyCgo(struct pumicedb_cb_cargs *args,void *);
 */
 import "C"
 
+func init() {
+	// Set log level to Trace for maximum verbosity
+	log.SetLevel(log.TraceLevel)
+}
+
 // The encoding overhead for a single key-val entry is 2 bytes
 var encodingOverhead int = 2
 
@@ -91,10 +96,10 @@ type PmdbLeaderTS struct {
 }
 
 type RangeReadResult struct {
-	ResultMap map[string][]byte
-	LastKey   string
-	SeqNum    uint64
-	SnapMiss  bool
+	Result   []PumiceDBCommon.Data // Changed from map to slice to preserve RocksDB ordering
+	LastKey  string
+	SeqNum   uint64
+	SnapMiss bool
 }
 
 const (
@@ -463,11 +468,10 @@ func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 
 // Public method of PmdbWriteKV
 func (*PmdbServerObject) DeleteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string, key_len int64, 
+	pmdb_handle unsafe.Pointer, key string, key_len int64,
 	gocolfamily string) int {
 	return PmdbDeleteKV(app_id, pmdb_handle, key, key_len, gocolfamily)
 }
-
 
 func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	key_len int64, value string, value_len int64, gocolfamily string) int {
@@ -592,9 +596,10 @@ func destroyRopts(seqNum uint64, ropts *C.rocksdb_readoptions_t, consistent bool
 	}
 }
 
-func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map[string][]byte, string, error) {
+func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) ([]PumiceDBCommon.Data, string, error) {
+	log.Debug("FunctionCall :: pmdbFetchAllKV :: start")
 	var lookup_err error
-	var resultMap = make(map[string][]byte)
+	var result = make([]PumiceDBCommon.Data, 0) // Use slice to preserve RocksDB ordering
 	var mapSize int
 	var lastKey string
 	var itr *C.rocksdb_iterator_t
@@ -612,7 +617,7 @@ func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map
 	//Seek to the provided key
 	seekTo(key, key_len, itr)
 
-	// Iterate over keys store them in map if prefix
+	// Iterate over keys and store them in slice to preserve RocksDB sort order
 	for C.rocksdb_iter_valid(itr) != 0 {
 		fKey, fVal := getKeyVal(itr)
 		log.Trace("ReadAll key : ", fKey)
@@ -620,12 +625,13 @@ func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map
 		// check if the key-val can be stored in the buffer
 		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
 		if (bufSize > 0) && ((int64(mapSize) + int64(entrySize)) > bufSize) {
-			log.Trace("ReadAll -  Reply buffer is full - dumping map to client")
+			log.Trace("ReadAll -  Reply buffer is full - dumping results to client")
 			lastKey = fKey
 			break
 		}
 		mapSize = mapSize + entrySize + encodingOverhead
-		resultMap[fKey] = fVal
+		// Append to slice to maintain RocksDB ordering
+		result = append(result, PumiceDBCommon.Data{Key: fKey, Value: fVal})
 
 		C.rocksdb_iter_next(itr)
 	}
@@ -636,20 +642,27 @@ func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map
 	C.rocksdb_iter_destroy(itr)
 	FreeCMem(cf)
 
-	if len(resultMap) == 0 {
+	if len(result) == 0 {
 		lookup_err = errors.New("No keys in the column family")
 	} else {
 		lookup_err = nil
 	}
-	return resultMap, lastKey, lookup_err
+	log.Debug("FunctionCall :: pmdbFetchAllKV :: end")
+	log.Debug("result len:", len(result))
+	if len(result) > 0 {
+		log.Debug("result 1st key,val:", result[0].Key, string(result[0].Value))
+		log.Debug("result last key,val:", result[len(result)-1].Key, string(result[len(result)-1].Value))
+	}
+	return result, lastKey, lookup_err
 }
 
 func pmdbFetchRange(key string, key_len int64,
 	prefix string, bufSize int64, consistent bool, seq uint64, go_cf string) (*RangeReadResult, error) {
 	var lookup_err error
+	log.Debug("FunctionCall :: pmdbFetchRange :: start")
 	res := &RangeReadResult{
-		ResultMap: make(map[string][]byte),
-		SeqNum:    seq,
+		Result: make([]PumiceDBCommon.Data, 0), // Use slice to preserve RocksDB ordering
+		SeqNum: seq,
 	}
 	var mapSize int
 	var itr *C.rocksdb_iterator_t
@@ -670,7 +683,7 @@ func pmdbFetchRange(key string, key_len int64,
 	//Seek to the provided key
 	seekTo(key, key_len, itr)
 
-	// Iterate over keys store them in map if prefix
+	// Iterate over keys and store them in slice to preserve RocksDB sort order
 	for C.rocksdb_iter_valid(itr) != 0 {
 		fKey, fVal := getKeyVal(itr)
 		log.Trace("RangeQuery - Seeked to : ", fKey)
@@ -684,12 +697,13 @@ func pmdbFetchRange(key string, key_len int64,
 		// check if the key-val can be stored in the buffer
 		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
 		if (int64(mapSize) + int64(entrySize)) > bufSize {
-			log.Trace("RangeQuery -  Reply buffer is full - dumping map to client")
+			log.Trace("RangeQuery -  Reply buffer is full - dumping results to client")
 			res.LastKey = fKey
 			break
 		}
 		mapSize = mapSize + entrySize + encodingOverhead
-		res.ResultMap[fKey] = fVal
+		// Append to slice to maintain RocksDB ordering
+		res.Result = append(res.Result, PumiceDBCommon.Data{Key: fKey, Value: fVal})
 
 		C.rocksdb_iter_next(itr)
 	}
@@ -706,17 +720,24 @@ func pmdbFetchRange(key string, key_len int64,
 	C.rocksdb_iter_destroy(itr)
 	FreeCMem(cf)
 
-	if len(res.ResultMap) == 0 {
+	if len(res.Result) == 0 {
 		lookup_err = errors.New("Failed to lookup for key")
 	} else {
 		lookup_err = nil
+	}
+	log.Debug("FunctionCall :: pmdbFetchRange :: end")
+	log.Debug("res.Result len:", len(res.Result))
+	if len(res.Result) > 0 {
+		log.Debug("result 1st key,val:", res.Result[0].Key, string(res.Result[0].Value))
+		log.Debug("result last key,val:", res.Result[len(res.Result)-1].Key, string(res.Result[len(res.Result)-1].Value))
 	}
 	return res, lookup_err
 }
 
 // Public method for read all KV from the column family
+// Returns results in sorted order as a slice of Data structs
 func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
-	key_len int64, bufSize int64, gocolfamily string) (map[string][]byte, string, error) {
+	key_len int64, bufSize int64, gocolfamily string) ([]PumiceDBCommon.Data, string, error) {
 
 	return pmdbFetchAllKV(key, key_len, bufSize, gocolfamily)
 }
