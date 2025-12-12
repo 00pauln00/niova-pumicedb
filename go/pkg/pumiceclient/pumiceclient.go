@@ -32,6 +32,7 @@ type PmdbReq struct {
 	Request  	[]byte
 	Reply    	*[]byte
 	GetReply 	int
+	WriteSeqNo 	int64
 	ZeroCopyObj *RDZeroCopyObj
 }
 
@@ -106,7 +107,7 @@ func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
 	}
 
 	var rs int64
-	rb, err := pco.put(ra.Rncui, rp, rl, rsb, &rs)
+	rb, err := pco.put(ra.Rncui, ra.WriteSeqNo, rp, rl, rsb, &rs)
 	if err != nil || rb == nil {
 		return err
 	}
@@ -187,8 +188,8 @@ func PmdbAsyncReqCompletionCB(args unsafe.Pointer, size C.ssize_t) {
 // Call the pmdb C library function to write the application data.
 // If application expects response on write operation,
 // get_response should be 1
-func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
-	get_response C.int, replySize *int64) (unsafe.Pointer, error) {
+func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64, 
+	obj *C.char, len int64, get_response C.int, replySize *int64) (unsafe.Pointer, error) {
 
 	
 	var rncui_id C.struct_raft_net_client_user_id
@@ -198,6 +199,7 @@ func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
 
 	//To respect CGO memory invarients of 2nd level pointers
 	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	stat.sequence_num = C.int64_t(writeSeqNo)
 	defer C.free(unsafe.Pointer(stat))
 
 	//Get the completion callback function pointer
