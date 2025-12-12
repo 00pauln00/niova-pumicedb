@@ -536,9 +536,10 @@ func (wrObj *wrOne) exec() error {
 
 	reqArgs := &PumiceDBClient.PmdbReq{
 		Rncui:       wrObj.op.rncui,
-		Request:       request.Bytes(),
+		Request:     request.Bytes(),
 		GetReply: 	 0,
 		Reply:   	 &response,
+		WriteSeqNum: 0,
 		ReqType:	 PumiceDBCommon.APP_REQ,
 	}
 
@@ -768,6 +769,7 @@ func (wmObj *wrMul) exec() error {
 		reqArgs.Request = request.Bytes()
 		reqArgs.Rncui = rncui
 		reqArgs.GetReply = 0
+		reqArgs.WriteSeqNum = 0
 		reqArgs.ReqType = PumiceDBCommon.APP_REQ
 
 		err := wmObj.op.cliObj.Put(&reqArgs)

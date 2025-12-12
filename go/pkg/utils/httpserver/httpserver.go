@@ -19,11 +19,11 @@ type HTTPServerHandler struct {
 	Addr                net.IP
 	Port                uint16
 	GetKVHandler       func([]byte, *[]byte) error
-	PutKVHandler       func(string, []byte, *[]byte) error
+	PutKVHandler       func(string, int64, []byte, *[]byte) error
 	GetLeaseHandler     func([]byte, *[]byte) error
-	PutLeaseHandler     func(string, []byte, *[]byte) error
+	PutLeaseHandler     func(string, int64, []byte, *[]byte) error
 	GetFuncHandler      func(string, []byte, *[]byte, *http.Request) error
-	PutFuncHandler      func(string, string, []byte, *[]byte, *http.Request) error
+	PutFuncHandler      func(string, string, int64, []byte, *[]byte, *http.Request) error
 	HTTPConnectionLimit int
 	PMDBServerConfig    map[string][]byte
 	PortRange           []uint16
@@ -140,6 +140,10 @@ func (handler *HTTPServerHandler) kvHandler(writer http.ResponseWriter, reader *
 	//Handle the KV request
 	requestBytes, err := ioutil.ReadAll(reader.Body)
 	rncui := reader.URL.Query().Get("rncui")
+	wsn, err := strconv.ParseInt(reader.URL.Query().Get("wsn"), 10, 64)
+	if err != nil {
+		wsn = 0
+	}
 
 	switch reader.Method {
 	case "GET":
@@ -155,7 +159,7 @@ func (handler *HTTPServerHandler) kvHandler(writer http.ResponseWriter, reader *
 			if handler.StatsRequired {
 				thisRequestStat.Status = "Processing"
 			}
-			err = handler.PutKVHandler(rncui, requestBytes, &result)
+			err = handler.PutKVHandler(rncui, wsn, requestBytes, &result)
 		}
 		if err == nil {
 			success = true
@@ -197,6 +201,10 @@ func (handler *HTTPServerHandler) leaseHandler(writer http.ResponseWriter, reade
 	//Handle the KV request
 	requestBytes, err := ioutil.ReadAll(reader.Body)
 	rncui := reader.URL.Query().Get("rncui")
+	wsn, err := strconv.ParseInt(reader.URL.Query().Get("wsn"), 10, 64)
+	if err != nil {
+		wsn = 0
+	}
 
 	switch reader.Method {
 	case "GET":
@@ -212,7 +220,7 @@ func (handler *HTTPServerHandler) leaseHandler(writer http.ResponseWriter, reade
 			if handler.StatsRequired {
 				thisRequestStat.Status = "Processing"
 			}
-			err = handler.PutLeaseHandler(rncui, requestBytes, &result)
+			err = handler.PutLeaseHandler(rncui, wsn, requestBytes, &result)
 		}
 		if err == nil {
 			success = true
@@ -242,13 +250,17 @@ func (handler *HTTPServerHandler) funcHandler(writer http.ResponseWriter, reader
 
 	name := reader.URL.Query().Get("name")
 	rncui := reader.URL.Query().Get("rncui")
+	wsn, err := strconv.ParseInt(reader.URL.Query().Get("wsn"), 10, 64)
+	if err != nil {
+		wsn = 0
+	}
 	var response []byte
 
 	switch reader.Method {
 	case "GET":
 		err = handler.GetFuncHandler(name, body, &response, reader)
 	case "PUT":
-		err = handler.PutFuncHandler(name, rncui, body, &response, reader)
+		err = handler.PutFuncHandler(name, rncui, wsn, body, &response, reader)
 	}
 	if err != nil {
 		log.Error("Error in FuncHandler: ", err)
