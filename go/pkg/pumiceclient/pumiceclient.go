@@ -32,7 +32,7 @@ type PmdbReq struct {
 	Request  	[]byte
 	Reply    	*[]byte
 	GetReply 	int
-	WriteSeqNo 	int64
+	WriteSeqNum int64
 	ZeroCopyObj *RDZeroCopyObj
 }
 
@@ -43,7 +43,8 @@ type PmdbClientObj struct {
 	initialized bool
 	//Deprecated fields
 	AppUUID     string
-	WriteSeqNo  uint64
+	//Write sequence number should be maintained by application
+	WriteSeqNum int64
 }
 
 type RDZeroCopyObj struct {
@@ -107,7 +108,7 @@ func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
 	}
 
 	var rs int64
-	rb, err := pco.put(ra.Rncui, ra.WriteSeqNo, rp, rl, rsb, &rs)
+	rb, err := pco.put(ra.Rncui, ra.WriteSeqNum, rp, rl, rsb, &rs)
 	if err != nil || rb == nil {
 		return err
 	}
