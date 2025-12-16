@@ -231,14 +231,15 @@ func (handler *proxyHandler) start_SerfAgent() error {
 }
 
 //Put callback definition for HTTP server
-func (handler *proxyHandler) PutCallBack(rncui string, request []byte, response *[]byte) error {
-	idq := atomic.AddUint64(&handler.pmdbClientObj.WriteSeqNo, uint64(1))
-	rncui = fmt.Sprintf("%s:0:0:0:%d", handler.pmdbClientObj.AppUUID, idq)
+func (handler *proxyHandler) PutCallBack(rncui string, wsn int64, request []byte, response *[]byte) error {
+	idq := atomic.AddInt64(&handler.pmdbClientObj.WriteSeqNum, int64(1))
+	rncui = fmt.Sprintf("%s:0:0:0:0", handler.pmdbClientObj.AppUUID)
 	reqArgs := &pmdbClient.PmdbReq{
-		Rncui:    rncui,
-		Request:  request,
-		GetReply: 0,
-		ReqType:  PumiceDBCommon.APP_REQ,
+		Rncui:    	 rncui,
+		Request:  	 request,
+		GetReply: 	 0,
+		ReqType:  	 PumiceDBCommon.APP_REQ,
+		WriteSeqNum: idq,
 	}
 	err := handler.pmdbClientObj.Put(reqArgs)
 	if err != nil {

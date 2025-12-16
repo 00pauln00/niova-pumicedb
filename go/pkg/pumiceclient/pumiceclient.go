@@ -32,6 +32,7 @@ type PmdbReq struct {
 	Request  	[]byte
 	Reply    	*[]byte
 	GetReply 	int
+	WriteSeqNum int64
 	ZeroCopyObj *RDZeroCopyObj
 }
 
@@ -42,7 +43,8 @@ type PmdbClientObj struct {
 	initialized bool
 	//Deprecated fields
 	AppUUID     string
-	WriteSeqNo  uint64
+	//Write sequence number should be maintained by application
+	WriteSeqNum int64
 }
 
 type RDZeroCopyObj struct {
@@ -106,7 +108,7 @@ func (pco *PmdbClientObj) Put(ra *PmdbReq) error {
 	}
 
 	var rs int64
-	rb, err := pco.put(ra.Rncui, rp, rl, rsb, &rs)
+	rb, err := pco.put(ra.Rncui, ra.WriteSeqNum, rp, rl, rsb, &rs)
 	if err != nil || rb == nil {
 		return err
 	}
@@ -187,17 +189,22 @@ func PmdbAsyncReqCompletionCB(args unsafe.Pointer, size C.ssize_t) {
 // Call the pmdb C library function to write the application data.
 // If application expects response on write operation,
 // get_response should be 1
-func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
-	get_response C.int, replySize *int64) (unsafe.Pointer, error) {
+func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64, 
+	obj *C.char, len int64, get_response C.int, replySize *int64) (unsafe.Pointer, error) {
 
 	
 	var rncui_id C.struct_raft_net_client_user_id
 	rncuiStrC := GoToCString(rncui)
 	defer FreeCMem(rncuiStrC)
-	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
+
+	rc := C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
+	if rc != 0 {
+		return nil, fmt.Errorf("Failed to parse rncui: %v", rc)
+	}
 
 	//To respect CGO memory invarients of 2nd level pointers
 	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	stat.sequence_num = C.int64_t(writeSeqNo)
 	defer C.free(unsafe.Pointer(stat))
 
 	//Get the completion callback function pointer
@@ -211,17 +218,17 @@ func (pco *PmdbClientObj) put(rncui string, obj *C.char, len int64,
 	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, get_response, stat, cb, args, 
 								nil, 0, 0);
 
-	rc := C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
+	rc = C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
 		obj, GoToCSize_t(len), &pmdb_req_opt)
 
 	if rc != 0 {
-		return nil, fmt.Errorf("PmdbObjPut(): %d", rc)
+		return nil, fmt.Errorf("PmdbObjPutX(): %d", rc)
 	}
 
 	//Await for the request response!
 	err := <-reqComplCh
 	if err != 0 {
-		return nil, fmt.Errorf("PmdbObjPut(): %d", err)
+		return nil, fmt.Errorf("Put operation failed: %d", err)
 	}
 
 	get_response_go := int(get_response)

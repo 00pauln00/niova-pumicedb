@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"os"
-	"sync/atomic"
 
 	leaseClientLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/client"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
@@ -55,12 +53,6 @@ func usage() {
 func parseOperation(str string) (int, bool) {
 	op, ok := operationsMap[str]
 	return op, ok
-}
-
-func getRNCUI(clientObj *pmdbClient.PmdbClientObj) string {
-	idq := atomic.AddUint64(&clientObj.WriteSeqNo, uint64(1))
-	rncui := fmt.Sprintf("%s:0:0:0:%d", clientObj.AppUUID, idq)
-	return rncui
 }
 
 /*
@@ -149,8 +141,6 @@ func (handler *leaseHandler) startPMDBClient(client string) error {
 	}
 	log.Info("Leader uuid : ", leaderUuid.String())
 
-	//Store rncui in AppUUID
-	handler.clientObj.PmdbClientObj.AppUUID = uuid.NewV4().String()
 	return nil
 }
 
@@ -170,8 +160,11 @@ func (lh *leaseHandler) prepReqs() {
 			client = lh.rqArgs.client
 		}
 
-		rq.InitLeaseReq(client.String(), resource.String(),
-			getRNCUI(lh.clientObj.PmdbClientObj), lh.cliOperation)
+		if (lh.cliOperation != leaseLib.LOOKUP && lh.cliOperation != leaseLib.LOOKUP_VALIDATE) {
+			rq.Rncui, rq.WSN = uuid.NewV4().String()+":0:0:0:0", 0
+		}
+
+		rq.InitLeaseReq(client.String(), resource.String(), lh.cliOperation)
 		rq.LeaseClientObj = &lh.clientObj
 		lh.cliReqArr = append(lh.cliReqArr, rq)
 	}

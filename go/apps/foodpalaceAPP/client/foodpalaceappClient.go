@@ -350,6 +350,7 @@ func (woexc *writeOne) exec() error {
 		Rncui:       woexc.args[1],
 		Request:	 request.Bytes(),
 		ReqType:	 PumiceDBCommon.APP_REQ,
+		WriteSeqNum: 0,
 	}
 
 	fmt.Println("\n", woexc.rq.foodpalaceData, woexc.args[1])
@@ -494,6 +495,7 @@ func (wme *writeMulti) exec() error {
 		reqArgs.Rncui = rncui
 		reqArgs.Request = request.Bytes()
 		reqArgs.ReqType = PumiceDBCommon.APP_REQ
+		reqArgs.WriteSeqNum = 0
 
 		err := wme.rq.clientObj.Put(&reqArgs)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 
 	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
@@ -21,11 +22,12 @@ type LeaseClient struct {
 }
 
 type LeaseClientReqHandler struct {
-	Rncui          string
 	LeaseClientObj *LeaseClient
 	LeaseReq       leaseLib.LeaseReq
 	LeaseRes       leaseLib.LeaseRes
 	ReqBuff        bytes.Buffer
+	Rncui		   string
+	WSN            int64
 	Err            error
 }
 
@@ -41,7 +43,7 @@ Arguments : LeaseReq, rncui, *LeaseResp
 Return(s) : error
 Description : Wrapper function for WriteEncoded() function
 */
-func (co LeaseClient) write(obj *[]byte, rncui string,
+func (co LeaseClient) write(obj *[]byte, rncui string, seq int64,
 	response *[]byte) error {
 
 	reqArgs := &pmdbClient.PmdbReq{
@@ -50,6 +52,7 @@ func (co LeaseClient) write(obj *[]byte, rncui string,
 		GetReply: 	 1,
 		Reply:    	 response,
 		ReqType:	 PumiceDBCommon.LEASE_REQ,
+		WriteSeqNum: seq,
 	}
 
 	return co.PmdbClientObj.Put(reqArgs)
@@ -82,7 +85,7 @@ Arguments :
 Return(s) : error
 Description : Initialize the handler's leaseReq struct
 */
-func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource, rncui string,
+func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource string,
 	operation int) error {
 
 	rUUID, err := uuid.FromString(resource)
@@ -103,7 +106,6 @@ func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource, rncui string,
 	}
 	lh.LeaseReq.Resource = rUUID
 	lh.LeaseReq.Client = cUUID
-	lh.Rncui = rncui
 
 	return err
 }
@@ -131,7 +133,7 @@ func (lh *LeaseClientReqHandler) LeaseOperation() error {
 	case leaseLib.GET, leaseLib.GET_VALIDATE:
 		fallthrough
 	case leaseLib.REFRESH:
-		err = lh.LeaseClientObj.write(&rqb, lh.Rncui, &b)
+		err = lh.LeaseClientObj.write(&rqb, lh.Rncui, lh.WSN, &b)
 	case leaseLib.LOOKUP, leaseLib.LOOKUP_VALIDATE:
 		err = lh.LeaseClientObj.read(&rqb, "", &b)
 	}
@@ -169,11 +171,13 @@ func (lh *LeaseClientReqHandler) LeaseOperationOverHTTP() error {
 		return err
 	}
 
+	var uri string
 	if lh.LeaseReq.Operation != leaseLib.LOOKUP {
 		isWrite = true
+		uri = fmt.Sprintf("?rncui=%s&wsn=%d", lh.Rncui, lh.WSN)
 	}
 	// send req
-	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), "/lease?rncui="+lh.Rncui, isWrite)
+	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), fmt.Sprintf("/lease%s", uri), isWrite)
 	if err != nil {
 		return err
 	}
