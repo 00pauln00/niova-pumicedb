@@ -196,7 +196,11 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	var rncui_id C.struct_raft_net_client_user_id
 	rncuiStrC := GoToCString(rncui)
 	defer FreeCMem(rncuiStrC)
-	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
+
+	rc := C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
+	if rc != 0 {
+		return nil, fmt.Errorf("Failed to parse rncui: %v", rc)
+	}
 
 	//To respect CGO memory invarients of 2nd level pointers
 	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
@@ -214,17 +218,17 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, get_response, stat, cb, args, 
 								nil, 0, 0);
 
-	rc := C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
+	rc = C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
 		obj, GoToCSize_t(len), &pmdb_req_opt)
 
 	if rc != 0 {
-		return nil, fmt.Errorf("PmdbObjPut(): %d", rc)
+		return nil, fmt.Errorf("PmdbObjPutX(): %d", rc)
 	}
 
 	//Await for the request response!
 	err := <-reqComplCh
 	if err != 0 {
-		return nil, fmt.Errorf("PmdbObjPut(): %d", err)
+		return nil, fmt.Errorf("Put operation failed: %d", err)
 	}
 
 	get_response_go := int(get_response)
