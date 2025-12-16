@@ -141,8 +141,6 @@ func (handler *leaseHandler) startPMDBClient(client string) error {
 	}
 	log.Info("Leader uuid : ", leaderUuid.String())
 
-	//Store rncui in AppUUID
-	handler.clientObj.PmdbClientObj.AppUUID = uuid.NewV4().String()
 	return nil
 }
 
@@ -160,6 +158,10 @@ func (lh *leaseHandler) prepReqs() {
 		} else {
 			resource = lh.rqArgs.resource
 			client = lh.rqArgs.client
+		}
+
+		if (lh.cliOperation != leaseLib.LOOKUP && lh.cliOperation != leaseLib.LOOKUP_VALIDATE) {
+			rq.Rncui, rq.WSN = uuid.NewV4().String()+":0:0:0:0", 0
 		}
 
 		rq.InitLeaseReq(client.String(), resource.String(), lh.cliOperation)

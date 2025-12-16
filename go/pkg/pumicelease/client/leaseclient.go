@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 
 	pmdbClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
@@ -27,6 +26,8 @@ type LeaseClientReqHandler struct {
 	LeaseReq       leaseLib.LeaseReq
 	LeaseRes       leaseLib.LeaseRes
 	ReqBuff        bytes.Buffer
+	Rncui		   string
+	WSN            int64
 	Err            error
 }
 
@@ -109,12 +110,6 @@ func (lh *LeaseClientReqHandler) InitLeaseReq(client, resource string,
 	return err
 }
 
-func getRNCUINSeq(clientObj *pmdbClient.PmdbClientObj) (string, int64) {
-	idq := atomic.AddInt64(&clientObj.WriteSeqNum, int64(1))
-	rncui := fmt.Sprintf("%s:0:0:0:0", clientObj.AppUUID)
-	return rncui, idq
-}
-
 /*
 Structure : LeaseHandler
 Method	  : LeaseOperation()
@@ -138,8 +133,7 @@ func (lh *LeaseClientReqHandler) LeaseOperation() error {
 	case leaseLib.GET, leaseLib.GET_VALIDATE:
 		fallthrough
 	case leaseLib.REFRESH:
-		rncui, seq := getRNCUINSeq(lh.LeaseClientObj.PmdbClientObj)
-		err = lh.LeaseClientObj.write(&rqb, rncui, seq, &b)
+		err = lh.LeaseClientObj.write(&rqb, lh.Rncui, lh.WSN, &b)
 	case leaseLib.LOOKUP, leaseLib.LOOKUP_VALIDATE:
 		err = lh.LeaseClientObj.read(&rqb, "", &b)
 	}
@@ -177,14 +171,13 @@ func (lh *LeaseClientReqHandler) LeaseOperationOverHTTP() error {
 		return err
 	}
 
-	var rncui string
-	var seq int64
+	var uri string
 	if lh.LeaseReq.Operation != leaseLib.LOOKUP {
 		isWrite = true
-		rncui, seq = getRNCUINSeq(lh.LeaseClientObj.PmdbClientObj)
+		uri = fmt.Sprintf("?rncui=%s&wsn=%d", lh.Rncui, lh.WSN)
 	}
 	// send req
-	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), fmt.Sprintf("/lease?rncui=%s&wsn=%d", rncui, seq), isWrite)
+	b, err = lh.LeaseClientObj.ServiceDiscoveryObj.Request(lh.ReqBuff.Bytes(), fmt.Sprintf("/lease%s", uri), isWrite)
 	if err != nil {
 		return err
 	}
