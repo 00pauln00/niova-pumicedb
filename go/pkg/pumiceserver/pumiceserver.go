@@ -408,7 +408,7 @@ func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 	cf := GoToCString(gocolfamily)
 
 	C_key := GoToCString(key)
-	log.Trace("Writing key to db :", key)
+	log.Trace("Deleting key from db :", key)
 	C_key_len := GoToCSize_t(key_len)
 
 	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
@@ -417,11 +417,9 @@ func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
 
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbDeleteKV(capp_id, pmdb_handle, C_key, C_key_len, nil, unsafe.Pointer(cf_handle))
-	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
-	log.Trace("Seq Num for this write is - ", seqNum)
 	go_rc := int(rc)
 	if go_rc != 0 {
-		log.Error("PmdbWriteKV failed with error: ", go_rc)
+		log.Error("PmdbDeleteKV failed with error: ", go_rc)
 	}
 	//Free C memory
 	FreeCMem(cf)
