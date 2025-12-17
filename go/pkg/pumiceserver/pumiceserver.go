@@ -688,12 +688,6 @@ func PmdbCopyDataToBuffer(ed interface{}, buffer unsafe.Pointer) (int64, error) 
 	return key_len, nil
 }
 
-// Public method version of PmdbCopyDataToBuffer
-func (*PmdbServerObject) CopyDataToBuffer(ed interface{},
-	buffer unsafe.Pointer) (int64, error) {
-	return PmdbCopyDataToBuffer(ed, buffer)
-}
-
 func (*PmdbServerObject) GetCurrentHybridTime() float64 {
 	//TODO: Update this code
 	return 0.0

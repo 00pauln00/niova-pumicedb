@@ -240,7 +240,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	}
 
 	//Copy the encoded result in replyBuffer
-	replySize, copyErr := cso.pso.CopyDataToBuffer(resultCovid,
+	replySize, copyErr := PumiceDBServer.PmdbCopyDataToBuffer(resultCovid,
 		readArgs.ReplyBuf)
 	if copyErr != nil {
 		log.Error("Failed to Copy result in the buffer: %s", copyErr)
@@ -295,7 +295,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		return -1
 	}
 
-	replySize, _ := cso.pso.CopyDataToBuffer(resultCovid, applyArgs.ReplyBuf)
+	replySize, _ := PumiceDBServer.PmdbCopyDataToBuffer(resultCovid, applyArgs.ReplyBuf)
 
 	return replySize
 }

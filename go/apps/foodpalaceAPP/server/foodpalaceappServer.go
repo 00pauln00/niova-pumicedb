@@ -153,7 +153,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	}
 
 	//Copy the encoded result in reply_buffer.
-	dataReplySize, copyErr := fpso.pso.CopyDataToBuffer(replyData, readArgs.ReplyBuf)
+	dataReplySize, copyErr := PumiceDBServer.PmdbCopyDataToBuffer(replyData, readArgs.ReplyBuf)
 	if copyErr != nil {
 		log.Error("Failed to Copy result in the buffer: %s", copyErr)
 		return -1
@@ -229,7 +229,6 @@ func main() {
 		log.Error(err)
 	}
 }
-
 
 func (cso *FoodpalaceServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
     fmt.Println("FillReply callback for duplicate rncui")

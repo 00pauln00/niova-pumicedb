@@ -269,7 +269,7 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 
 	case SEND_RESPONSE:
 		*crw = 0
-		ret, e = lso.Pso.CopyDataToBuffer(rs, wrPrepArgs.ReplyBuf)
+		ret, e = PumiceDBServer.PmdbCopyDataToBuffer(rs, wrPrepArgs.ReplyBuf)
 		if e != nil {
 			log.Error("Failed to Copy result in the buffer: %s", e)
 			return 0
@@ -344,7 +344,7 @@ func (lso *LeaseServerObject) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	rc := leaseReq.readLease()
 
 	if rc == 0 {
-		replySize, copyErr = lso.Pso.CopyDataToBuffer(returnObj, readArgs.ReplyBuf)
+		replySize, copyErr = PumiceDBServer.PmdbCopyDataToBuffer(returnObj, readArgs.ReplyBuf)
 		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)
 			return -1
@@ -518,7 +518,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		if !((rc == 0) && (applyArgs.ReplyBuf != nil)) {
 			return int64(rc)
 		}
-		replySizeRc, copyErr = lso.Pso.CopyDataToBuffer(returnObj,
+		replySizeRc, copyErr = PumiceDBServer.PmdbCopyDataToBuffer(returnObj,
 			applyArgs.ReplyBuf)
 		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)

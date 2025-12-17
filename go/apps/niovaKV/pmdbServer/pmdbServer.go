@@ -201,7 +201,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		}
 
 		//Copy the encoded result in replyBuffer
-		replySize, copyErr = nso.pso.CopyDataToBuffer(resultReq,
+		replySize, copyErr = PumiceDBServer.PmdbCopyDataToBuffer(resultReq,
 			readArgs.ReplyBuf)
 		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)
