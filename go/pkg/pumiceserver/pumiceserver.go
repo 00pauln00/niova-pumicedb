@@ -106,6 +106,15 @@ type PmdbLeaderTS struct {
 	Time int64
 }
 
+type RangeReadArgs struct {
+	Key        string
+	Prefix     string
+	SeqNum     uint64
+	Consistent bool
+	BufSize    int64
+	ColFamily  string
+}
+
 type RangeReadResult struct {
 	ResultMap map[string][]byte
 	LastKey   string
@@ -515,7 +524,6 @@ func createRopts(consistent bool, seqNum *uint64) (*C.rocksdb_readoptions_t, boo
 }
 
 func destroyRopts(seqNum uint64, ropts *C.rocksdb_readoptions_t, consistent bool) {
-	log.Trace("RangeQuery - Destroying ropts")
 	if consistent {
 		C.PmdbPutRoptionsWithSnapshot(C.ulong(seqNum))
 	} else {
@@ -523,114 +531,54 @@ func destroyRopts(seqNum uint64, ropts *C.rocksdb_readoptions_t, consistent bool
 	}
 }
 
-func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map[string][]byte, string, error) {
-	var lookup_err error
-	var resultMap = make(map[string][]byte)
-	var mapSize int
-	var lastKey string
-	var itr *C.rocksdb_iterator_t
-
-	log.Trace("Read All KV from column Family ", go_cf)
-
-	//Create ropts
-	ropts, _ := createRopts(false, nil)
-
-	// create iterator
-	cf := GoToCString(go_cf)
-	cf_handle := C.PmdbCfHandleLookup(cf)
-	itr = C.rocksdb_create_iterator_cf(C.PmdbGetRocksDB(), ropts, cf_handle)
-
-	//Seek to the provided key
-	seekTo(key, key_len, itr)
-
-	// Iterate over keys store them in map if prefix
-	for C.rocksdb_iter_valid(itr) != 0 {
-		fKey, fVal := getKeyVal(itr)
-		log.Trace("ReadAll key : ", fKey)
-
-		// check if the key-val can be stored in the buffer
-		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
-		if (bufSize > 0) && ((int64(mapSize) + int64(entrySize)) > bufSize) {
-			log.Trace("ReadAll -  Reply buffer is full - dumping map to client")
-			lastKey = fKey
-			break
-		}
-		mapSize = mapSize + entrySize + encodingOverhead
-		resultMap[fKey] = fVal
-
-		C.rocksdb_iter_next(itr)
-	}
-
-	destroyRopts(0, ropts, false)
-
-	//Free the iterator and memory
-	C.rocksdb_iter_destroy(itr)
-	FreeCMem(cf)
-
-	if len(resultMap) == 0 {
-		lookup_err = errors.New("No keys in the column family")
-	} else {
-		lookup_err = nil
-	}
-	return resultMap, lastKey, lookup_err
-}
-
-func pmdbFetchRange(key string, key_len int64,
-	prefix string, bufSize int64, consistent bool, seq uint64, go_cf string) (*RangeReadResult, error) {
+func (pca *PmdbCbArgs) PmdbRangeRead(args RangeReadArgs) (*RangeReadResult, error) {
 	var lookup_err error
 	res := &RangeReadResult{
 		ResultMap: make(map[string][]byte),
-		SeqNum:    seq,
+		SeqNum:    args.SeqNum,
 	}
 	var mapSize int
 	var itr *C.rocksdb_iterator_t
 	var ropts *C.rocksdb_readoptions_t
 	var endReached bool
 
-	log.Trace("RangeQuery - Key passed is: ", key, " Prefix passed is : ", prefix,
-		" Seq No passed is : ", res.SeqNum)
-
 	//Create ropts based on consistency and seqNum
-	ropts, res.SnapMiss = createRopts(consistent, &res.SeqNum)
+	ropts, res.SnapMiss = createRopts(args.Consistent, &res.SeqNum)
 
 	// create iterator
-	cf := GoToCString(go_cf)
+	cf := GoToCString(args.ColFamily)
 	cf_handle := C.PmdbCfHandleLookup(cf)
 	itr = C.rocksdb_create_iterator_cf(C.PmdbGetRocksDB(), ropts, cf_handle)
 
 	//Seek to the provided key
-	seekTo(key, key_len, itr)
+	seekTo(args.Key, int64(len(args.Key)), itr)
 
 	// Iterate over keys store them in map if prefix
 	for C.rocksdb_iter_valid(itr) != 0 {
-		fKey, fVal := getKeyVal(itr)
-		log.Trace("RangeQuery - Seeked to : ", fKey)
+		k, v := getKeyVal(itr)
 
 		// check if passed key is prefix of fetched key or exit
-		if !strings.HasPrefix(fKey, prefix) {
+		if (args.Prefix != "") && (!strings.HasPrefix(k, args.Prefix)) {
 			endReached = true
 			break
 		}
 
 		// check if the key-val can be stored in the buffer
-		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
-		if (int64(mapSize) + int64(entrySize)) > bufSize {
-			log.Trace("RangeQuery -  Reply buffer is full - dumping map to client")
-			res.LastKey = fKey
+		entrySize := len([]byte(k)) + len([]byte(v)) + encodingOverhead
+		if (int64(mapSize) + int64(entrySize)) > args.BufSize {
+			res.LastKey = k
 			break
 		}
 		mapSize = mapSize + entrySize + encodingOverhead
-		res.ResultMap[fKey] = fVal
+		res.ResultMap[k] = v
 
 		C.rocksdb_iter_next(itr)
 	}
 
 	//Destroy ropts for consistent mode only when reached the end of the range query
 	//Wheras, destroy ropts in every iteration if the range query is not consistent
-	if C.rocksdb_iter_valid(itr) == 0 || endReached == true {
-		destroyRopts(res.SeqNum, ropts, consistent)
-	} else if !consistent {
-		destroyRopts(res.SeqNum, ropts, consistent)
+	if C.rocksdb_iter_valid(itr) == 0 || endReached == true || !args.Consistent {
+		destroyRopts(res.SeqNum, ropts, args.Consistent)
 	}
 
 	//Free the iterator and memory
@@ -643,18 +591,6 @@ func pmdbFetchRange(key string, key_len int64,
 		lookup_err = nil
 	}
 	return res, lookup_err
-}
-
-// Public method for read all KV from the column family
-func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
-	key_len int64, bufSize int64, gocolfamily string) (map[string][]byte, string, error) {
-
-	return pmdbFetchAllKV(key, key_len, bufSize, gocolfamily)
-}
-
-func RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
 func PmdbCopyBytesToBuffer(ed []byte,

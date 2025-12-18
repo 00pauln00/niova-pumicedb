@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"unsafe"
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
@@ -542,27 +541,32 @@ func (lso *LeaseServerObject) leaderInit() {
 	}
 }
 
-func (lso *LeaseServerObject) peerBootup(userID unsafe.Pointer) {
-	readResult, _, _ := lso.Pso.ReadAllKV(userID, "", 0, 0, lso.LeaseColmFam)
+func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
+	rrargs := PumiceDBServer.RangeReadArgs{
+		ColFamily: lso.LeaseColmFam,
+	}
+	rrres, _ := cbArgs.PmdbRangeRead(rrargs)
 
-	//Result of the read
-	for key, value := range readResult {
-		//Decode the request structure sent by client.
-		var leaseInfo leaseLib.LeaseInfo
-		dec := gob.NewDecoder(bytes.NewBuffer(value))
-		decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
-		if decodeErr != nil {
-			log.Error("Failed to decode the read request : ", decodeErr)
-			return
+	if rrres.ResultMap != nil {
+		//Result of the read
+		for key, value := range rrres.ResultMap {
+			//Decode the request structure sent by client.
+			var leaseInfo leaseLib.LeaseInfo
+			dec := gob.NewDecoder(bytes.NewBuffer(value))
+			decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
+			if decodeErr != nil {
+				log.Error("Failed to decode the read request : ", decodeErr)
+				return
+			}
+			kuuid, _ := uuid.FromString(key)
+			lso.LeaseMap[kuuid] = &leaseInfo
+			if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
+				leaseInfo.ListElement = &list.Element{}
+				leaseInfo.ListElement.Value = &leaseInfo
+				lso.listOperation(&leaseInfo, PUSH, false)
+			}
+			delete(rrres.ResultMap, key)
 		}
-		kuuid, _ := uuid.FromString(key)
-		lso.LeaseMap[kuuid] = &leaseInfo
-		if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
-			leaseInfo.ListElement = &list.Element{}
-			leaseInfo.ListElement.Value = &leaseInfo
-			lso.listOperation(&leaseInfo, PUSH, false)
-		}
-		delete(readResult, key)
 	}
 }
 
@@ -700,7 +704,7 @@ func (lso *LeaseServerObject) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 		lso.leaderInit()
 	case PumiceDBServer.INIT_BOOTUP_STATE:
 		log.Info("Init callback on peer bootup.")
-		lso.peerBootup(initPeerArgs.UserID)
+		lso.peerBootup(initPeerArgs)
 	case PumiceDBServer.INIT_BECOMING_CANDIDATE_STATE:
 		log.Info("Init callback on peer becoming candidate.")
 	default:
