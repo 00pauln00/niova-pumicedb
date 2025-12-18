@@ -35,36 +35,34 @@ import "C"
 var encodingOverhead int = 2
 
 type PmdbCbArgs struct {
-	/*
-		Fields for pmdb request from the app.
-	*/
-	ReqBuf  unsafe.Pointer
-	ReqSize int64
-	/*
-		Fields for pmdb reply to the app.
-	*/
+	// App level request payload
+	Payload []byte
+
+	// Fields for reply buffer.
 	ReplyBuf  unsafe.Pointer
 	ReplySize int64
-	/*
-		Fields for application specific data
-		set in WritePrep stage. Only should be
-		used on Apply CB!
-	*/
+
+	// Fields for application specific data set in WritePrep stage.
+	// Read in Apply stage.
 	AppData     unsafe.Pointer
 	AppDataSize int64
 
-	InitState  int
-	Payload    []byte
-	ContinueWr unsafe.Pointer
+	// Continue int ptr for WritePrep stage to notify
+	// whether to continue with write to apply stage or not.
+	// By default write continues to apply stage.
+	// Call DiscontinueWrite to stop the write.
+	continueWR unsafe.Pointer
 
-	/*
-		Rncui and pmdb apply handler
-	*/
-	UserID      unsafe.Pointer
-	PmdbHandler unsafe.Pointer
+	// Contains the raft state change enum (RAFT_STATE_CHANGE).
+	// Provided for Init handler.
+	InitState int
 
-	/* Pumice server handler pointer */
-	UserData unsafe.Pointer
+	// Rncui and write supplement handler
+	rncui     unsafe.Pointer
+	wsHandler unsafe.Pointer
+
+	// Pumice server handler pointer
+	pumiceHandler unsafe.Pointer
 }
 
 type PmdbServerAPI interface {
@@ -122,6 +120,7 @@ type RangeReadResult struct {
 	SnapMiss  bool
 }
 
+// RAFT_STATE_CHANGE enum values
 const (
 	INIT_TYPE_NONE                int = 0
 	INIT_BOOTUP_STATE                 = 1
@@ -175,15 +174,15 @@ func CToGoBytes(C_value *C.char, C_value_len C.int) []byte {
 
 func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 	goCbArgs *PmdbCbArgs) int {
-	goCbArgs.UserID = unsafe.Pointer(cargs.pcb_userid)
+	goCbArgs.rncui = unsafe.Pointer(cargs.pcb_userid)
 	ReqBuf := unsafe.Pointer(cargs.pcb_req_buf)
 	ReqSize := CToGoInt64(cargs.pcb_req_bufsz)
 	goCbArgs.ReplyBuf = unsafe.Pointer(cargs.pcb_reply_buf)
 	goCbArgs.ReplySize = CToGoInt64(cargs.pcb_reply_bufsz)
 	goCbArgs.InitState = int(cargs.pcb_init)
-	goCbArgs.ContinueWr = unsafe.Pointer(cargs.pcb_continue_wr)
-	goCbArgs.PmdbHandler = unsafe.Pointer(cargs.pcb_pmdb_handler)
-	goCbArgs.UserData = unsafe.Pointer(cargs.pcb_user_data)
+	goCbArgs.continueWR = unsafe.Pointer(cargs.pcb_continue_wr)
+	goCbArgs.wsHandler = unsafe.Pointer(cargs.pcb_pmdb_handler)
+	goCbArgs.pumiceHandler = unsafe.Pointer(cargs.pcb_user_data)
 	goCbArgs.AppData = unsafe.Pointer(cargs.pcb_app_data)
 	goCbArgs.AppDataSize = CToGoInt64(cargs.pcb_app_data_sz)
 	//Decode Pumice level request
@@ -210,7 +209,7 @@ func goWritePrep(args *C.struct_pumicedb_cb_cargs) int64 {
 	reqType := pmdbCbArgsInit(args, &wrPrepArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(wrPrepArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(wrPrepArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -236,7 +235,7 @@ func goApply(args *C.struct_pumicedb_cb_cargs,
 	reqType := pmdbCbArgsInit(args, &applyArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(applyArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(applyArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -259,7 +258,7 @@ func goRead(args *C.struct_pumicedb_cb_cargs) int64 {
 	reqType := pmdbCbArgsInit(args, &readArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(readArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(readArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -282,7 +281,7 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 	pmdbCbArgsInit(args, &initArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(initArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(initArgs.pumiceHandler).(*PmdbServerObject)
 
 	gcb.PmdbAPI.Init(&initArgs)
 	if gcb.LeaseEnabled {
@@ -294,7 +293,7 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 func goFillReply(args *C.struct_pumicedb_cb_cargs) int64 {
 	var replyArgs PmdbCbArgs
 	reqType := pmdbCbArgsInit(args, &replyArgs)
-	gcb := gopointer.Restore(replyArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(replyArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -380,6 +379,12 @@ func (pso *PmdbServerObject) Run() error {
 	return PmdbStartServer(pso)
 }
 
+func (pca *PmdbCbArgs) DiscontinueWrite() {
+	if pca.continueWR != nil {
+		*(*C.int)(pca.continueWR) = C.int(0)
+	}
+}
+
 // search a key in RocksDB
 func (pca *PmdbCbArgs) PmdbReadKV(cf string, key string) ([]byte, error) {
 	ccf := GoToCString(cf)
@@ -425,14 +430,14 @@ func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) int {
 	defer FreeCMem(ck)
 	ckl := GoToCSize_t(int64(len(key)))
 
-	capp_id := (*C.struct_raft_net_client_user_id)(pca.UserID)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.rncui)
 
 	ccf := GoToCString(cf)
 	defer FreeCMem(ccf)
 	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbDeleteKV(capp_id, pca.PmdbHandler, ck, ckl, nil, unsafe.Pointer(cfh))
+	rc := C.PmdbDeleteKV(capp_id, pca.wsHandler, ck, ckl, nil, unsafe.Pointer(cfh))
 
 	go_rc := int(rc)
 	if go_rc != 0 {
@@ -453,14 +458,14 @@ func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) int {
 
 	cvl := GoToCSize_t(int64(len(val)))
 
-	capp_id := (*C.struct_raft_net_client_user_id)(pca.UserID)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.rncui)
 
 	ccf := GoToCString(cf)
 	defer FreeCMem(ccf)
 	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbWriteKV(capp_id, pca.PmdbHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
+	rc := C.PmdbWriteKV(capp_id, pca.wsHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
 
 	go_rc := int(rc)
 	if go_rc != 0 {

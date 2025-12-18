@@ -257,17 +257,16 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 		return -1
 	}
 
-	crw := (*int)(wrPrepArgs.ContinueWr)
 	var rs leaseLib.LeaseRes
 	rc := lso.prepare(rq, &rs)
 
 	switch rc {
 	case ERROR:
-		*crw = 0
+		wrPrepArgs.DiscontinueWrite()
 		return -1
 
 	case SEND_RESPONSE:
-		*crw = 0
+		wrPrepArgs.DiscontinueWrite()
 		ret, e = PumiceDBServer.PmdbCopyDataToBuffer(rs, wrPrepArgs.ReplyBuf)
 		if e != nil {
 			log.Error("Failed to Copy result in the buffer: %s", e)
@@ -276,7 +275,6 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 		return ret
 
 	case CONTINUE_WR:
-		*crw = 1
 		return 0
 	}
 

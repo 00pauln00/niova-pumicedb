@@ -85,7 +85,6 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 		return -1
 	}
 
-	cw := (*int)(wpa.ContinueWr)
 	if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
 		res, err := fn(r.Args, wpa)
 		if err != nil {
@@ -105,7 +104,7 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 	return 0
 
 error:
-	*cw = 0
+	wpa.DiscontinueWrite()
 	return -1
 }
 
