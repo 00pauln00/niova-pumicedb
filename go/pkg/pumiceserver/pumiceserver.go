@@ -35,18 +35,36 @@ import "C"
 var encodingOverhead int = 2
 
 type PmdbCbArgs struct {
-	UserID      unsafe.Pointer
-	ReqBuf      unsafe.Pointer
-	ReqSize     int64
-	ReplyBuf    unsafe.Pointer
-	ReplySize   int64
-	InitState   int
-	Payload     []byte
-	ContinueWr  unsafe.Pointer
-	PmdbHandler unsafe.Pointer
-	UserData    unsafe.Pointer
+	/*
+		Fields for pmdb request from the app.
+	*/
+	ReqBuf  unsafe.Pointer
+	ReqSize int64
+	/*
+		Fields for pmdb reply to the app.
+	*/
+	ReplyBuf  unsafe.Pointer
+	ReplySize int64
+	/*
+		Fields for application specific data
+		set in WritePrep stage. Only should be
+		used on Apply CB!
+	*/
 	AppData     unsafe.Pointer
 	AppDataSize int64
+
+	InitState  int
+	Payload    []byte
+	ContinueWr unsafe.Pointer
+
+	/*
+		Rncui and pmdb apply handler
+	*/
+	UserID      unsafe.Pointer
+	PmdbHandler unsafe.Pointer
+
+	/* Pumice server handler pointer */
+	UserData unsafe.Pointer
 }
 
 type PmdbServerAPI interface {
@@ -354,114 +372,94 @@ func (pso *PmdbServerObject) Run() error {
 }
 
 // search a key in RocksDB
-func PmdbReadKV(key string, key_len int64,
-	go_cf string) ([]byte, error) {
+func (pca *PmdbCbArgs) PmdbReadKV(cf string, key string) ([]byte, error) {
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
 
-	var goerr string
-	var C_value_len C.size_t
-	var result []byte
-	var lookup_err error
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-	err := GoToCString(goerr)
-
-	cf := GoToCString(go_cf)
-
-	//Convert go string to C char *
-	C_key := GoToCString(key)
-
-	C_key_len := GoToCSize_t(key_len)
-
-	//Get the column family handle
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	ropts := C.rocksdb_readoptions_create()
 
-	C_value := C.rocksdb_get_cf(C.PmdbGetRocksDB(), ropts, cf_handle, C_key,
-		C_key_len, &C_value_len, &err)
+	var cerr *C.char
+	var cvl C.size_t
+
+	cv := C.rocksdb_get_cf(C.PmdbGetRocksDB(), ropts, cfh, ck, ckl, &cvl, &cerr)
 
 	C.rocksdb_readoptions_destroy(ropts)
 
-	if C_value != nil {
+	var result []byte
+	var err error
 
-		buffer_value := CToGoBytes(C_value, C.int(C_value_len))
-		result = C.GoBytes(unsafe.Pointer(C_value), C.int(C_value_len))
-		log.Debug("C_value: ", C_value, " \nvalBytes: ", string(buffer_value))
-		lookup_err = nil
-		FreeCMem(C_value)
-	} else {
-		lookup_err = errors.New("Failed to lookup for key")
+	if err != nil {
+		log.Error("PmdbReadKV: rocksdb_get_cf failed with error: ", C.GoString(cerr))
+		err = errors.New("rocksdb_get_cf failed")
+		C.rocksdb_free(unsafe.Pointer(cerr))
 	}
 
-	//Free C memory
-	FreeCMem(err)
-	FreeCMem(cf)
-	FreeCMem(C_key)
+	if cv != nil {
+		result = C.GoBytes(unsafe.Pointer(cv), C.int(cvl))
+		err = nil
+		C.rocksdb_free(unsafe.Pointer(cv))
+	}
+
 	log.Trace("Result is :", result)
-	return result, lookup_err
+	return result, err
 }
 
-// Public method of PmdbLookupKey
-func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) int {
+func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) int {
 
-	//typecast go string to C char *
-	cf := GoToCString(gocolfamily)
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-	C_key := GoToCString(key)
-	log.Trace("Deleting key from db :", key)
-	C_key_len := GoToCSize_t(key_len)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.UserID)
 
-	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
-
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbDeleteKV(capp_id, pmdb_handle, C_key, C_key_len, nil, unsafe.Pointer(cf_handle))
+	rc := C.PmdbDeleteKV(capp_id, pca.PmdbHandler, ck, ckl, nil, unsafe.Pointer(cfh))
+
 	go_rc := int(rc)
 	if go_rc != 0 {
-		log.Error("PmdbDeleteKV failed with error: ", go_rc)
+		log.Error("DeleteKV failed with error: ", go_rc)
 	}
-	//Free C memory
-	FreeCMem(cf)
-	FreeCMem(C_key)
+
 	return go_rc
 }
 
+func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) int {
 
-func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-	//typecast go string to C char *
-	cf := GoToCString(gocolfamily)
+	cv := GoToCString(val)
+	defer FreeCMem(cv)
 
-	C_key := GoToCString(key)
-	log.Trace("Writing key to db :", key)
-	C_key_len := GoToCSize_t(key_len)
+	cvl := GoToCSize_t(int64(len(val)))
 
-	C_value := GoToCString(value)
-	log.Trace("Writing value to db :", value)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.UserID)
 
-	C_value_len := GoToCSize_t(value_len)
-
-	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
-
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbWriteKV(capp_id, pmdb_handle, C_key, C_key_len, C_value, C_value_len, nil, unsafe.Pointer(cf_handle))
-	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
-	log.Trace("Seq Num for this write is - ", seqNum)
+	rc := C.PmdbWriteKV(capp_id, pca.PmdbHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
+
 	go_rc := int(rc)
 	if go_rc != 0 {
-		log.Error("PmdbWriteKV failed with error: ", go_rc)
+		log.Error("WriteKV failed with error: ", go_rc)
 	}
-	//Free C memory
-	FreeCMem(cf)
-	FreeCMem(C_key)
-	FreeCMem(C_value)
+
 	return go_rc
 }
-
 
 // Wrapper for rocksdb_iter_seek -
 // Seeks the passed iterator to the passed key or first key
@@ -755,7 +753,6 @@ func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string) int {
 	totalSize := int64(rmsize) + int64(pmsize) + dsize
 	buf := C.malloc(C.size_t(totalSize))
 	defer C.free(buf)
-
 
 	//Populate raft_client_rpc_msg structure
 	rcm := (*C.struct_raft_client_rpc_msg)(buf)

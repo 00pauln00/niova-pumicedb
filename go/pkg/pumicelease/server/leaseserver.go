@@ -5,15 +5,16 @@ import (
 	list "container/list"
 	"encoding/gob"
 	"errors"
-	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
-	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
-	uuid "github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
-	"sync"
 	"fmt"
+	"sync"
 	"time"
 	"unsafe"
+
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
+	uuid "github.com/satori/go.uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 var ttlDefault = 15
@@ -47,11 +48,10 @@ type LeaseServerReqHandler struct {
 	LeaseServerObj *LeaseServerObject
 	LeaseReq       leaseLib.LeaseReq
 	LeaseRes       *leaseLib.LeaseRes
-	UserID         unsafe.Pointer
-	PmdbHandler    unsafe.Pointer
+	cbargs         *PumiceDBServer.PmdbCbArgs
 }
 
-//Helper functions
+// Helper functions
 func checkMajorCorrectness(currentTerm int64, leaseTerm int64) {
 	if currentTerm != leaseTerm {
 		log.Fatal("Major(Term) not matching")
@@ -417,10 +417,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 
 	byteToStr := string(valueBytes.Bytes())
 
-	// Length of value.
-	valLen := len(byteToStr)
-	keyLength := len(handler.LeaseReq.Resource.String())
-	rc := PumiceDBServer.PmdbWriteKV(handler.UserID, handler.PmdbHandler, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
+	rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, handler.LeaseReq.Resource.String(), byteToStr)
 	if rc < 0 {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb")
@@ -472,10 +469,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		handler.LeaseServerObj.leaseLock.Unlock()
 
 		byteToStr := string(valueBytes.Bytes())
-		valLen := len(byteToStr)
-		rc := PumiceDBServer.PmdbWriteKV(handler.UserID, handler.PmdbHandler,
-			resource.String(), int64(len(resource.String())), byteToStr, int64(valLen),
-			handler.LeaseServerObj.LeaseColmFam)
+		rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, resource.String(), byteToStr)
 		if rc < 0 {
 			log.Error("Expired lease update to RocksDB failed")
 		}
@@ -502,8 +496,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		LeaseServerObj: lso,
 		LeaseReq:       applyLeaseReq,
 		LeaseRes:       &returnObj,
-		UserID:         applyArgs.UserID,
-		PmdbHandler:    applyArgs.PmdbHandler,
+		cbargs:         applyArgs,
 	}
 
 	//Handle GC request
@@ -596,7 +589,7 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 	}
 	//XXX We use random RNCUI till we define its scope
 	uuid := uuid.NewV4().String()
-    rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
+	rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
 	PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui)
 	if err != nil {
 		log.Error(err)

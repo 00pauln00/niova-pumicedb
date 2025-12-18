@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"flag"
 	"fmt"
-	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	"os"
 	"strconv"
 	"strings"
-	"encoding/gob"
-	"bytes"
+
+	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 
 	foodpalaceapplib "github.com/00pauln00/niova-pumicedb/go/apps/foodpalaceAPP/lib"
 	log "github.com/sirupsen/logrus"
@@ -35,7 +36,7 @@ type FoodpalaceServer struct {
 	pso            *PumiceDBServer.PmdbServerObject
 }
 
-//Method to initizalize logger.
+// Method to initizalize logger.
 func (fpso *FoodpalaceServer) initLogger() {
 
 	var filename string = logDir + "/" + fpso.peerUuid + ".log"
@@ -62,17 +63,17 @@ func appdecode(payload []byte, op interface{}) error {
 	return dec.Decode(op)
 }
 
-//Method for Init callback
+// Method for Init callback
 func (fpso *FoodpalaceServer) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 	return
 }
 
-//Method for WritePrep callback.
+// Method for WritePrep callback.
 func (fpso *FoodpalaceServer) WritePrep(wrPreArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return 0
 }
 
-//Method for Apply callback.
+// Method for Apply callback.
 func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	data := &foodpalaceapplib.FoodpalaceData{}
@@ -81,10 +82,9 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 
 	//Convert resturant_id from int to string and store as fp_app_key.
 	fpAppKey := strconv.Itoa(int(data.RestaurantId))
-	appKeyLen := len(fpAppKey)
 
 	//Lookup for the key if it is already present.
-	prevValue, err := PumiceDBServer.PmdbReadKV(fpAppKey, int64(appKeyLen), colmfamily)
+	prevValue, err := applyArgs.PmdbReadKV(colmfamily, fpAppKey)
 
 	//If previous value is not null, update value of votes.
 	if err == nil {
@@ -102,17 +102,14 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 
 	fpAppValue := fmt.Sprintf("%s_%s_%s_%s_%d", data.RestaurantName, data.City, data.Cuisines, data.RatingsText, data.Votes)
 	fmt.Println("fpAppValue", fpAppValue)
-	appValLen := len(fpAppValue)
 
 	//Write key,values.
-	rc := PumiceDBServer.PmdbWriteKV(applyArgs.UserID, applyArgs.PmdbHandler, fpAppKey,
-		int64(appKeyLen), fpAppValue,
-		int64(appValLen), colmfamily)
+	rc := applyArgs.PmdbWriteKV(colmfamily, fpAppKey, fpAppValue)
 
 	return int64(rc)
 }
 
-//Method for read callback.
+// Method for read callback.
 func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	var resultSplt []string
@@ -127,10 +124,8 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Typecast RestaurantId into string.
 	fappKey := strconv.Itoa(int(readReqData.RestaurantId))
-	fappKeyLen := len(fappKey)
 
-	result, readErr := PumiceDBServer.PmdbReadKV(fappKey,
-		int64(fappKeyLen), colmfamily)
+	result, readErr := readArgs.PmdbReadKV(colmfamily, fappKey)
 	if readErr == nil {
 		//Split the result to get respective values.
 		resultStr := string(result[:])
@@ -162,7 +157,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	return dataReplySize
 }
 
-//Function to get commandline parameters and initizalize FoodpalaceServer instance.
+// Function to get commandline parameters and initizalize FoodpalaceServer instance.
 func foodPalaceServerNew() *FoodpalaceServer {
 
 	fpso := &FoodpalaceServer{}
@@ -180,8 +175,8 @@ func foodPalaceServerNew() *FoodpalaceServer {
 	return fpso
 }
 
-//If log directory is not exist it creates directory.
-//and if dir path is not passed then it will create log file in current directory by default.
+// If log directory is not exist it creates directory.
+// and if dir path is not passed then it will create log file in current directory by default.
 func makeDirectoryIfNotExists() error {
 
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
@@ -231,7 +226,7 @@ func main() {
 }
 
 func (cso *FoodpalaceServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
-    fmt.Println("FillReply callback for duplicate rncui")
+	fmt.Println("FillReply callback for duplicate rncui")
 	log.Info("FillReply callback for duplicate rncui")
-    return 0
+	return 0
 }
