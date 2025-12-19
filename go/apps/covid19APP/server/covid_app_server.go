@@ -160,10 +160,13 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Lookup the key first
 	prevResult, err := applyArgs.PmdbReadKV(colmfamily, applyCovid.Location)
+	if err != nil {
+		log.Info("No previous value found for the key: ", applyCovid.Location)
+	}
 
 	log.Info("Previous values of the covidData: ", prevResult)
 
-	if err == nil {
+	if len(prevResult) != 0 {
 
 		//Get TotalVaccinations value and PeopleVaccinated value by splitting prevResult.
 		splitVal := strings.Split(string(prevResult), " ")
