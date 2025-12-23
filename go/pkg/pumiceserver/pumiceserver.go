@@ -661,7 +661,7 @@ func pmdbInitRPCMsg(rcm *C.struct_raft_client_rpc_msg, dataSize uint32) {
 	rcm.rcrm_data_size = C.uint32_t(dataSize)
 }
 
-func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string) int {
+func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string, wsn int64) int {
 	var req PumiceDBCommon.PumiceRequest
 	req.Rncui = rncui
 	req.ReqType = rtype
@@ -687,11 +687,10 @@ func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string) int {
 
 	dsize := int64(len(data))
 	rmsize := C.sizeof_struct_raft_client_rpc_msg
-	pmsize := C.sizeof_struct_pmdb_msg
 	pmdSize := C.sizeof_struct_pmdb_msg + C.int64_t(dsize)
 
 	//total size of the request buffer
-	totalSize := int64(rmsize) + int64(pmsize) + dsize
+	totalSize := int64(rmsize) + int64(pmdSize)
 	buf := C.malloc(C.size_t(totalSize))
 	defer C.free(buf)
 
@@ -710,7 +709,7 @@ func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string) int {
 
 	//Populate pmdb_msg structure
 	pmdb_msg := (*C.struct_pmdb_msg)(rptr)
-	C.pmdb_direct_msg_init(pmdb_msg, obj_id, C.uint32_t(dsize), C.pmdb_op_write, 0)
+	C.pmdb_direct_msg_init(pmdb_msg, obj_id, C.uint32_t(dsize), C.pmdb_op_write, C.int64_t(wsn))
 
 	//Get the pointer to pmdbrm_data and store the PumiceRequest
 	dataPtr := unsafe.Pointer(uintptr(rptr) + C.sizeof_struct_pmdb_msg)

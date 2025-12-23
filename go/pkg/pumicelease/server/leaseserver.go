@@ -592,11 +592,8 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 	//XXX We use random RNCUI till we define its scope
 	uuid := uuid.NewV4().String()
 	rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
-	PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui)
-	if err != nil {
-		log.Error(err)
-	}
-	return -1
+	rc := PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui, 0)
+	return rc
 }
 
 func (lso *LeaseServerObject) leaseGarbageCollector() {
