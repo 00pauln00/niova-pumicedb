@@ -5,13 +5,15 @@ import (
 	list "container/list"
 	"encoding/gob"
 	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
-	"sync"
-	"time"
-	"unsafe"
 )
 
 var ttlDefault = 15
@@ -45,11 +47,10 @@ type LeaseServerReqHandler struct {
 	LeaseServerObj *LeaseServerObject
 	LeaseReq       leaseLib.LeaseReq
 	LeaseRes       *leaseLib.LeaseRes
-	UserID         unsafe.Pointer
-	PmdbHandler    unsafe.Pointer
+	cbargs         *PumiceDBServer.PmdbCbArgs
 }
 
-//Helper functions
+// Helper functions
 func checkMajorCorrectness(currentTerm int64, leaseTerm int64) {
 	if currentTerm != leaseTerm {
 		log.Fatal("Major(Term) not matching")
@@ -256,18 +257,17 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 		return -1
 	}
 
-	crw := (*int)(wrPrepArgs.ContinueWr)
 	var rs leaseLib.LeaseRes
 	rc := lso.prepare(rq, &rs)
 
 	switch rc {
 	case ERROR:
-		*crw = 0
+		wrPrepArgs.DiscontinueWrite()
 		return -1
 
 	case SEND_RESPONSE:
-		*crw = 0
-		ret, e = lso.Pso.CopyDataToBuffer(rs, wrPrepArgs.ReplyBuf)
+		wrPrepArgs.DiscontinueWrite()
+		ret, e = PumiceDBServer.PmdbCopyDataToBuffer(rs, wrPrepArgs.ReplyBuf)
 		if e != nil {
 			log.Error("Failed to Copy result in the buffer: %s", e)
 			return 0
@@ -275,7 +275,6 @@ func (lso *LeaseServerObject) WritePrep(wrPrepArgs *PumiceDBServer.PmdbCbArgs) i
 		return ret
 
 	case CONTINUE_WR:
-		*crw = 1
 		return 0
 	}
 
@@ -342,7 +341,7 @@ func (lso *LeaseServerObject) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	rc := leaseReq.readLease()
 
 	if rc == 0 {
-		replySize, copyErr = lso.Pso.CopyDataToBuffer(returnObj, readArgs.ReplyBuf)
+		replySize, copyErr = PumiceDBServer.PmdbCopyDataToBuffer(returnObj, readArgs.ReplyBuf)
 		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)
 			return -1
@@ -415,10 +414,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 
 	byteToStr := string(valueBytes.Bytes())
 
-	// Length of value.
-	valLen := len(byteToStr)
-	keyLength := len(handler.LeaseReq.Resource.String())
-	rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler, handler.LeaseReq.Resource.String(), int64(keyLength), byteToStr, int64(valLen), handler.LeaseServerObj.LeaseColmFam)
+	rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, handler.LeaseReq.Resource.String(), byteToStr)
 	if rc < 0 {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb")
@@ -470,10 +466,7 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		handler.LeaseServerObj.leaseLock.Unlock()
 
 		byteToStr := string(valueBytes.Bytes())
-		valLen := len(byteToStr)
-		rc := handler.LeaseServerObj.Pso.WriteKV(handler.UserID, handler.PmdbHandler,
-			resource.String(), int64(len(resource.String())), byteToStr, int64(valLen),
-			handler.LeaseServerObj.LeaseColmFam)
+		rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, resource.String(), byteToStr)
 		if rc < 0 {
 			log.Error("Expired lease update to RocksDB failed")
 		}
@@ -500,8 +493,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		LeaseServerObj: lso,
 		LeaseReq:       applyLeaseReq,
 		LeaseRes:       &returnObj,
-		UserID:         applyArgs.UserID,
-		PmdbHandler:    applyArgs.PmdbHandler,
+		cbargs:         applyArgs,
 	}
 
 	//Handle GC request
@@ -516,7 +508,7 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 		if !((rc == 0) && (applyArgs.ReplyBuf != nil)) {
 			return int64(rc)
 		}
-		replySizeRc, copyErr = lso.Pso.CopyDataToBuffer(returnObj,
+		replySizeRc, copyErr = PumiceDBServer.PmdbCopyDataToBuffer(returnObj,
 			applyArgs.ReplyBuf)
 		if copyErr != nil {
 			log.Error("Failed to Copy result in the buffer: %s", copyErr)
@@ -547,27 +539,32 @@ func (lso *LeaseServerObject) leaderInit() {
 	}
 }
 
-func (lso *LeaseServerObject) peerBootup(userID unsafe.Pointer) {
-	readResult, _, _ := lso.Pso.ReadAllKV(userID, "", 0, 0, lso.LeaseColmFam)
+func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
+	rrargs := PumiceDBServer.RangeReadArgs{
+		ColFamily: lso.LeaseColmFam,
+	}
+	rrres, _ := cbArgs.PmdbRangeRead(rrargs)
 
-	//Result of the read
-	for key, value := range readResult {
-		//Decode the request structure sent by client.
-		var leaseInfo leaseLib.LeaseInfo
-		dec := gob.NewDecoder(bytes.NewBuffer(value))
-		decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
-		if decodeErr != nil {
-			log.Error("Failed to decode the read request : ", decodeErr)
-			return
+	if rrres.ResultMap != nil {
+		//Result of the read
+		for key, value := range rrres.ResultMap {
+			//Decode the request structure sent by client.
+			var leaseInfo leaseLib.LeaseInfo
+			dec := gob.NewDecoder(bytes.NewBuffer(value))
+			decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
+			if decodeErr != nil {
+				log.Error("Failed to decode the read request : ", decodeErr)
+				return
+			}
+			kuuid, _ := uuid.FromString(key)
+			lso.LeaseMap[kuuid] = &leaseInfo
+			if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
+				leaseInfo.ListElement = &list.Element{}
+				leaseInfo.ListElement.Value = &leaseInfo
+				lso.listOperation(&leaseInfo, PUSH, false)
+			}
+			delete(rrres.ResultMap, key)
 		}
-		kuuid, _ := uuid.FromString(key)
-		lso.LeaseMap[kuuid] = &leaseInfo
-		if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
-			leaseInfo.ListElement = &list.Element{}
-			leaseInfo.ListElement.Value = &leaseInfo
-			lso.listOperation(&leaseInfo, PUSH, false)
-		}
-		delete(readResult, key)
 	}
 }
 
@@ -584,8 +581,19 @@ func (lso *LeaseServerObject) sendGCReq(resourceUUIDs [MAX_SINGLE_GC_REQ]uuid.UU
 
 	//Send Request
 	log.Trace("Send stale lease processing request")
-	err := PumiceDBServer.PmdbEnqueueDirectWriteRequest(r)
-	return err
+
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(r)
+	if err != nil {
+		log.Error(err)
+		return -1
+	}
+	//XXX We use random RNCUI till we define its scope
+	uuid := uuid.NewV4().String()
+	rncui := fmt.Sprintf("%s:0:0:0:0", uuid)
+	rc := PumiceDBServer.PmdbEnqueuePutRequest(buf.Bytes(), PumiceDBCommon.LEASE_REQ, rncui, 0)
+	return rc
 }
 
 func (lso *LeaseServerObject) leaseGarbageCollector() {
@@ -691,7 +699,7 @@ func (lso *LeaseServerObject) Init(initPeerArgs *PumiceDBServer.PmdbCbArgs) {
 		lso.leaderInit()
 	case PumiceDBServer.INIT_BOOTUP_STATE:
 		log.Info("Init callback on peer bootup.")
-		lso.peerBootup(initPeerArgs.UserID)
+		lso.peerBootup(initPeerArgs)
 	case PumiceDBServer.INIT_BECOMING_CANDIDATE_STATE:
 		log.Info("Init callback on peer becoming candidate.")
 	default:

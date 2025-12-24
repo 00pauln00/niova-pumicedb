@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"flag"
 	"fmt"
 	"os"
@@ -82,9 +84,11 @@ func parseArgs() *CovidServer {
 	return cso
 }
 
-/*If log directory is not exist it creates directory.
-  and if dir path is not passed then it will create
-  log file in "/tmp/covidAppLog" path.
+/*
+If log directory is not exist it creates directory.
+
+	and if dir path is not passed then it will create
+	log file in "/tmp/covidAppLog" path.
 */
 func makeDirectoryIfNotExists() error {
 
@@ -96,7 +100,7 @@ func makeDirectoryIfNotExists() error {
 	return nil
 }
 
-//Create logfile for each peer.
+// Create logfile for each peer.
 func initLogger(cso *CovidServer) {
 
 	var filename string = logDir + "/" + cso.peerUuid + ".log"
@@ -120,6 +124,11 @@ func initLogger(cso *CovidServer) {
 	}
 }
 
+func appdecode(payload []byte, op interface{}) error {
+	dec := gob.NewDecoder(bytes.NewBuffer(payload))
+	return dec.Decode(op)
+}
+
 type CovidServer struct {
 	raftUuid       string
 	peerUuid       string
@@ -141,7 +150,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	/* Decode the input buffer into structure format */
 	applyCovid := &CovidAppLib.CovidLocale{}
 
-	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, applyCovid)
+	decodeErr := appdecode(applyArgs.Payload, applyCovid)
 	if decodeErr != nil {
 		log.Error("Failed to decode the application data")
 		return -1
@@ -149,16 +158,15 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	log.Info("Key passed by client: ", applyCovid.Location)
 
-	//length of key.
-	keyLength := len(applyCovid.Location)
-
 	//Lookup the key first
-	prevResult, err := cso.pso.LookupKey(applyCovid.Location,
-		int64(keyLength), colmfamily)
+	prevResult, err := applyArgs.PmdbReadKV(colmfamily, applyCovid.Location)
+	if err != nil {
+		log.Info("No previous value found for the key: ", applyCovid.Location)
+	}
 
 	log.Info("Previous values of the covidData: ", prevResult)
 
-	if err == nil {
+	if len(prevResult) != 0 {
 
 		//Get TotalVaccinations value and PeopleVaccinated value by splitting prevResult.
 		splitVal := strings.Split(string(prevResult), " ")
@@ -177,16 +185,10 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	covidDataVal := fmt.Sprintf("%s %d %d", applyCovid.IsoCode,
 		applyCovid.TotalVaccinations, applyCovid.PeopleVaccinated)
 
-	//length of all values.
-	covidDataLen := len(covidDataVal)
-
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	rc := cso.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
-		applyCovid.Location,
-		int64(keyLength), covidDataVal,
-		int64(covidDataLen), colmfamily)
+	rc := applyArgs.PmdbWriteKV(colmfamily, applyCovid.Location, covidDataVal)
 
 	return int64(rc)
 }
@@ -197,7 +199,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//Decode the request structure sent by client.
 	reqStruct := &CovidAppLib.CovidLocale{}
-	decodeErr := cso.pso.DecodeApplicationReq(readArgs.Payload, reqStruct)
+	decodeErr := appdecode(readArgs.Payload, reqStruct)
 
 	if decodeErr != nil {
 		log.Error("Failed to decode the read request")
@@ -210,14 +212,13 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Key length: ", keyLen)
 
 	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
-	readRsult, readErr := cso.pso.ReadKV(readArgs.UserID, reqStruct.Location,
-		int64(keyLen), colmfamily)
+	readResult, readErr := readArgs.PmdbReadKV(colmfamily, reqStruct.Location)
 
 	var splitValues []string
 
 	if readErr == nil {
 		//split space separated values.
-		splitValues = strings.Split(string(readRsult), " ")
+		splitValues = strings.Split(string(readResult), " ")
 	}
 
 	//Convert TotalVaccinations and PeopleVaccinated into int64 type
@@ -232,7 +233,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	}
 
 	//Copy the encoded result in replyBuffer
-	replySize, copyErr := cso.pso.CopyDataToBuffer(resultCovid,
+	replySize, copyErr := PumiceDBServer.PmdbCopyDataToBuffer(resultCovid,
 		readArgs.ReplyBuf)
 	if copyErr != nil {
 		log.Error("Failed to Copy result in the buffer: %s", copyErr)
@@ -249,17 +250,16 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	// Decode the request to get the key
 	reqStruct := &CovidAppLib.CovidLocale{}
-	decodeErr := cso.pso.DecodeApplicationReq(applyArgs.Payload, reqStruct)
+	decodeErr := appdecode(applyArgs.Payload, reqStruct)
 	if decodeErr != nil {
 		log.Error("Failed to decode the write request in FillReply")
 		return -1
 	}
 
 	key := reqStruct.Location
-	keyLen := len(key)
 
 	// Read the value from the DB
-	readRsult, readErr := cso.pso.ReadKV(applyArgs.UserID, key, int64(keyLen), colmfamily)
+	readResult, readErr := applyArgs.PmdbReadKV(colmfamily, key)
 	if readErr != nil {
 		log.Error("Failed to read value from DB in FillReply: ", readErr)
 		return -1
@@ -269,7 +269,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	if readErr == nil {
 		//split space separated values.
-		splitValues = strings.Split(string(readRsult), " ")
+		splitValues = strings.Split(string(readResult), " ")
 	}
 
 	//Convert TotalVaccinations and PeopleVaccinated into int64 type
@@ -287,7 +287,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 		return -1
 	}
 
-	replySize, _ := cso.pso.CopyDataToBuffer(resultCovid, applyArgs.ReplyBuf)
+	replySize, _ := PumiceDBServer.PmdbCopyDataToBuffer(resultCovid, applyArgs.ReplyBuf)
 
 	return replySize
 }

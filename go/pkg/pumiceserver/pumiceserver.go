@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"reflect"
 	"strconv"
@@ -14,7 +13,6 @@ import (
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	gopointer "github.com/mattn/go-pointer"
-	uuid "github.com/satori/go.uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -37,18 +35,34 @@ import "C"
 var encodingOverhead int = 2
 
 type PmdbCbArgs struct {
-	UserID      unsafe.Pointer
-	ReqBuf      unsafe.Pointer
-	ReqSize     int64
-	ReplyBuf    unsafe.Pointer
-	ReplySize   int64
-	InitState   int
-	Payload     []byte
-	ContinueWr  unsafe.Pointer
-	PmdbHandler unsafe.Pointer
-	UserData    unsafe.Pointer
+	// App level request payload
+	Payload []byte
+
+	// Fields for reply buffer.
+	ReplyBuf  unsafe.Pointer
+	ReplySize int64
+
+	// Fields for application specific data set in WritePrep stage.
+	// Read in Apply stage.
 	AppData     unsafe.Pointer
 	AppDataSize int64
+
+	// Continue int ptr for WritePrep stage to notify
+	// whether to continue with write to apply stage or not.
+	// By default write continues to apply stage.
+	// Call DiscontinueWrite to stop the write.
+	continueWR unsafe.Pointer
+
+	// Contains the raft state change enum (RAFT_STATE_CHANGE).
+	// Provided for Init handler.
+	InitState int
+
+	// Rncui and write supplement handler
+	rncui     unsafe.Pointer
+	wsHandler unsafe.Pointer
+
+	// Pumice server handler pointer
+	pumiceHandler unsafe.Pointer
 }
 
 type PmdbServerAPI interface {
@@ -90,6 +104,15 @@ type PmdbLeaderTS struct {
 	Time int64
 }
 
+type RangeReadArgs struct {
+	Key        string
+	Prefix     string
+	SeqNum     uint64
+	Consistent bool
+	BufSize    int64
+	ColFamily  string
+}
+
 type RangeReadResult struct {
 	ResultMap map[string][]byte
 	LastKey   string
@@ -97,6 +120,7 @@ type RangeReadResult struct {
 	SnapMiss  bool
 }
 
+// RAFT_STATE_CHANGE enum values
 const (
 	INIT_TYPE_NONE                int = 0
 	INIT_BOOTUP_STATE                 = 1
@@ -150,20 +174,20 @@ func CToGoBytes(C_value *C.char, C_value_len C.int) []byte {
 
 func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 	goCbArgs *PmdbCbArgs) int {
-	goCbArgs.UserID = unsafe.Pointer(cargs.pcb_userid)
+	goCbArgs.rncui = unsafe.Pointer(cargs.pcb_userid)
 	ReqBuf := unsafe.Pointer(cargs.pcb_req_buf)
 	ReqSize := CToGoInt64(cargs.pcb_req_bufsz)
 	goCbArgs.ReplyBuf = unsafe.Pointer(cargs.pcb_reply_buf)
 	goCbArgs.ReplySize = CToGoInt64(cargs.pcb_reply_bufsz)
 	goCbArgs.InitState = int(cargs.pcb_init)
-	goCbArgs.ContinueWr = unsafe.Pointer(cargs.pcb_continue_wr)
-	goCbArgs.PmdbHandler = unsafe.Pointer(cargs.pcb_pmdb_handler)
-	goCbArgs.UserData = unsafe.Pointer(cargs.pcb_user_data)
+	goCbArgs.continueWR = unsafe.Pointer(cargs.pcb_continue_wr)
+	goCbArgs.wsHandler = unsafe.Pointer(cargs.pcb_pmdb_handler)
+	goCbArgs.pumiceHandler = unsafe.Pointer(cargs.pcb_user_data)
 	goCbArgs.AppData = unsafe.Pointer(cargs.pcb_app_data)
 	goCbArgs.AppDataSize = CToGoInt64(cargs.pcb_app_data_sz)
 	//Decode Pumice level request
 	request := &PumiceDBCommon.PumiceRequest{}
-	err := Decode(ReqBuf, request, ReqSize)
+	err := PumiceDBCommon.Decode(ReqBuf, request, ReqSize)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -185,7 +209,7 @@ func goWritePrep(args *C.struct_pumicedb_cb_cargs) int64 {
 	reqType := pmdbCbArgsInit(args, &wrPrepArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(wrPrepArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(wrPrepArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -211,7 +235,7 @@ func goApply(args *C.struct_pumicedb_cb_cargs,
 	reqType := pmdbCbArgsInit(args, &applyArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(applyArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(applyArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -234,7 +258,7 @@ func goRead(args *C.struct_pumicedb_cb_cargs) int64 {
 	reqType := pmdbCbArgsInit(args, &readArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(readArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(readArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -257,7 +281,7 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 	pmdbCbArgsInit(args, &initArgs)
 
 	//Restore the golang function pointers stored in PmdbCallbacks.
-	gcb := gopointer.Restore(initArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(initArgs.pumiceHandler).(*PmdbServerObject)
 
 	gcb.PmdbAPI.Init(&initArgs)
 	if gcb.LeaseEnabled {
@@ -269,7 +293,7 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 func goFillReply(args *C.struct_pumicedb_cb_cargs) int64 {
 	var replyArgs PmdbCbArgs
 	reqType := pmdbCbArgsInit(args, &replyArgs)
-	gcb := gopointer.Restore(replyArgs.UserData).(*PmdbServerObject)
+	gcb := gopointer.Restore(replyArgs.pumiceHandler).(*PmdbServerObject)
 
 	var ret int64
 	if reqType == PumiceDBCommon.APP_REQ {
@@ -355,180 +379,101 @@ func (pso *PmdbServerObject) Run() error {
 	return PmdbStartServer(pso)
 }
 
-// Export the common decode method via the server object
-// TODO: Remove it from PmdbServerObject
-func (*PmdbServerObject) Decode(input unsafe.Pointer, output interface{},
-	len int64) error {
-	return PumiceDBCommon.Decode(input, output, len)
-}
-
-func (*PmdbServerObject) DecodeApplicationReq(input []byte, output interface{}) error {
-	dec := gob.NewDecoder(bytes.NewBuffer(input))
-	for {
-		if err := dec.Decode(output); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
+func (pca *PmdbCbArgs) DiscontinueWrite() {
+	if pca.continueWR != nil {
+		*(*C.int)(pca.continueWR) = C.int(0)
 	}
-
-	return nil
-}
-
-func Decode(input unsafe.Pointer, output interface{},
-	len int64) error {
-	return PumiceDBCommon.Decode(input, output, len)
 }
 
 // search a key in RocksDB
-func PmdbLookupKey(key string, key_len int64,
-	go_cf string) ([]byte, error) {
+func (pca *PmdbCbArgs) PmdbReadKV(cf string, key string) ([]byte, error) {
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
 
-	var goerr string
-	var C_value_len C.size_t
-	var result []byte
-	var lookup_err error
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-	err := GoToCString(goerr)
-
-	cf := GoToCString(go_cf)
-
-	//Convert go string to C char *
-	C_key := GoToCString(key)
-
-	C_key_len := GoToCSize_t(key_len)
-
-	//Get the column family handle
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	ropts := C.rocksdb_readoptions_create()
 
-	C_value := C.rocksdb_get_cf(C.PmdbGetRocksDB(), ropts, cf_handle, C_key,
-		C_key_len, &C_value_len, &err)
+	var cerr *C.char
+	var cvl C.size_t
+
+	cv := C.rocksdb_get_cf(C.PmdbGetRocksDB(), ropts, cfh, ck, ckl, &cvl, &cerr)
 
 	C.rocksdb_readoptions_destroy(ropts)
 
-	if C_value != nil {
+	var result []byte
+	var err error
 
-		buffer_value := CToGoBytes(C_value, C.int(C_value_len))
-		result = C.GoBytes(unsafe.Pointer(C_value), C.int(C_value_len))
-		log.Debug("C_value: ", C_value, " \nvalBytes: ", string(buffer_value))
-		lookup_err = nil
-		FreeCMem(C_value)
-	} else {
-		lookup_err = errors.New("Failed to lookup for key")
+	if err != nil {
+		log.Error("PmdbReadKV: rocksdb_get_cf failed with error: ", C.GoString(cerr))
+		err = errors.New("rocksdb_get_cf failed")
+		C.rocksdb_free(unsafe.Pointer(cerr))
 	}
 
-	//Free C memory
-	FreeCMem(err)
-	FreeCMem(cf)
-	FreeCMem(C_key)
+	if cv != nil {
+		result = C.GoBytes(unsafe.Pointer(cv), C.int(cvl))
+		err = nil
+		C.rocksdb_free(unsafe.Pointer(cv))
+	}
+
 	log.Trace("Result is :", result)
-	return result, lookup_err
+	return result, err
 }
 
-// Public method of PmdbLookupKey
-func (*PmdbServerObject) LookupKey(key string, key_len int64,
-	go_cf string) ([]byte, error) {
-	return PmdbLookupKey(key, key_len, go_cf)
-}
+func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) int {
 
-func PmdbDeleteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) int {
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-	//typecast go string to C char *
-	cf := GoToCString(gocolfamily)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.rncui)
 
-	C_key := GoToCString(key)
-	log.Trace("Writing key to db :", key)
-	C_key_len := GoToCSize_t(key_len)
-
-	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
-
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbDeleteKV(capp_id, pmdb_handle, C_key, C_key_len, nil, unsafe.Pointer(cf_handle))
-	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
-	log.Trace("Seq Num for this write is - ", seqNum)
+	rc := C.PmdbDeleteKV(capp_id, pca.wsHandler, ck, ckl, nil, unsafe.Pointer(cfh))
+
 	go_rc := int(rc)
 	if go_rc != 0 {
-		log.Error("PmdbWriteKV failed with error: ", go_rc)
+		log.Error("DeleteKV failed with error: ", go_rc)
 	}
-	//Free C memory
-	FreeCMem(cf)
-	FreeCMem(C_key)
+
 	return go_rc
 }
 
-// Public method of PmdbWriteKV
-func (*PmdbServerObject) DeleteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string, key_len int64, 
-	gocolfamily string) int {
-	return PmdbDeleteKV(app_id, pmdb_handle, key, key_len, gocolfamily)
-}
+func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) int {
 
+	ck := GoToCString(key)
+	defer FreeCMem(ck)
+	ckl := GoToCSize_t(int64(len(key)))
 
-func PmdbWriteKV(app_id unsafe.Pointer, pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
+	cv := GoToCString(val)
+	defer FreeCMem(cv)
 
-	//typecast go string to C char *
-	cf := GoToCString(gocolfamily)
+	cvl := GoToCSize_t(int64(len(val)))
 
-	C_key := GoToCString(key)
-	log.Trace("Writing key to db :", key)
-	C_key_len := GoToCSize_t(key_len)
+	capp_id := (*C.struct_raft_net_client_user_id)(pca.rncui)
 
-	C_value := GoToCString(value)
-	log.Trace("Writing value to db :", value)
-
-	C_value_len := GoToCSize_t(value_len)
-
-	capp_id := (*C.struct_raft_net_client_user_id)(app_id)
-
-	cf_handle := C.PmdbCfHandleLookup(cf)
+	ccf := GoToCString(cf)
+	defer FreeCMem(ccf)
+	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbWriteKV(capp_id, pmdb_handle, C_key, C_key_len, C_value, C_value_len, nil, unsafe.Pointer(cf_handle))
-	seqNum := int64(C.rocksdb_get_latest_sequence_number(C.PmdbGetRocksDB()))
-	log.Trace("Seq Num for this write is - ", seqNum)
+	rc := C.PmdbWriteKV(capp_id, pca.wsHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
+
 	go_rc := int(rc)
 	if go_rc != 0 {
-		log.Error("PmdbWriteKV failed with error: ", go_rc)
+		log.Error("WriteKV failed with error: ", go_rc)
 	}
-	//Free C memory
-	FreeCMem(cf)
-	FreeCMem(C_key)
-	FreeCMem(C_value)
+
 	return go_rc
 }
-
-// Public method of PmdbWriteKV
-func (*PmdbServerObject) WriteKV(app_id unsafe.Pointer,
-	pmdb_handle unsafe.Pointer, key string,
-	key_len int64, value string, value_len int64, gocolfamily string) int {
-
-	return PmdbWriteKV(app_id, pmdb_handle, key, key_len, value, value_len,
-		gocolfamily)
-}
-
-func PmdbReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) ([]byte, error) {
-
-	go_value, err := PmdbLookupKey(key, key_len, gocolfamily)
-
-	//Get the result
-	return go_value, err
-}
-
-// Public method of PmdbReadKV
-func (*PmdbServerObject) ReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, gocolfamily string) ([]byte, error) {
-
-	return PmdbReadKV(app_id, key, key_len, gocolfamily)
-}
-
-// Methods for range iterator
 
 // Wrapper for rocksdb_iter_seek -
 // Seeks the passed iterator to the passed key or first key
@@ -584,7 +529,6 @@ func createRopts(consistent bool, seqNum *uint64) (*C.rocksdb_readoptions_t, boo
 }
 
 func destroyRopts(seqNum uint64, ropts *C.rocksdb_readoptions_t, consistent bool) {
-	log.Trace("RangeQuery - Destroying ropts")
 	if consistent {
 		C.PmdbPutRoptionsWithSnapshot(C.ulong(seqNum))
 	} else {
@@ -592,114 +536,54 @@ func destroyRopts(seqNum uint64, ropts *C.rocksdb_readoptions_t, consistent bool
 	}
 }
 
-func pmdbFetchAllKV(key string, key_len int64, bufSize int64, go_cf string) (map[string][]byte, string, error) {
-	var lookup_err error
-	var resultMap = make(map[string][]byte)
-	var mapSize int
-	var lastKey string
-	var itr *C.rocksdb_iterator_t
-
-	log.Trace("Read All KV from column Family ", go_cf)
-
-	//Create ropts
-	ropts, _ := createRopts(false, nil)
-
-	// create iterator
-	cf := GoToCString(go_cf)
-	cf_handle := C.PmdbCfHandleLookup(cf)
-	itr = C.rocksdb_create_iterator_cf(C.PmdbGetRocksDB(), ropts, cf_handle)
-
-	//Seek to the provided key
-	seekTo(key, key_len, itr)
-
-	// Iterate over keys store them in map if prefix
-	for C.rocksdb_iter_valid(itr) != 0 {
-		fKey, fVal := getKeyVal(itr)
-		log.Trace("ReadAll key : ", fKey)
-
-		// check if the key-val can be stored in the buffer
-		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
-		if (bufSize > 0) && ((int64(mapSize) + int64(entrySize)) > bufSize) {
-			log.Trace("ReadAll -  Reply buffer is full - dumping map to client")
-			lastKey = fKey
-			break
-		}
-		mapSize = mapSize + entrySize + encodingOverhead
-		resultMap[fKey] = fVal
-
-		C.rocksdb_iter_next(itr)
-	}
-
-	destroyRopts(0, ropts, false)
-
-	//Free the iterator and memory
-	C.rocksdb_iter_destroy(itr)
-	FreeCMem(cf)
-
-	if len(resultMap) == 0 {
-		lookup_err = errors.New("No keys in the column family")
-	} else {
-		lookup_err = nil
-	}
-	return resultMap, lastKey, lookup_err
-}
-
-func pmdbFetchRange(key string, key_len int64,
-	prefix string, bufSize int64, consistent bool, seq uint64, go_cf string) (*RangeReadResult, error) {
+func (pca *PmdbCbArgs) PmdbRangeRead(args RangeReadArgs) (*RangeReadResult, error) {
 	var lookup_err error
 	res := &RangeReadResult{
 		ResultMap: make(map[string][]byte),
-		SeqNum:    seq,
+		SeqNum:    args.SeqNum,
 	}
 	var mapSize int
 	var itr *C.rocksdb_iterator_t
 	var ropts *C.rocksdb_readoptions_t
 	var endReached bool
 
-	log.Trace("RangeQuery - Key passed is: ", key, " Prefix passed is : ", prefix,
-		" Seq No passed is : ", res.SeqNum)
-
 	//Create ropts based on consistency and seqNum
-	ropts, res.SnapMiss = createRopts(consistent, &res.SeqNum)
+	ropts, res.SnapMiss = createRopts(args.Consistent, &res.SeqNum)
 
 	// create iterator
-	cf := GoToCString(go_cf)
+	cf := GoToCString(args.ColFamily)
 	cf_handle := C.PmdbCfHandleLookup(cf)
 	itr = C.rocksdb_create_iterator_cf(C.PmdbGetRocksDB(), ropts, cf_handle)
 
 	//Seek to the provided key
-	seekTo(key, key_len, itr)
+	seekTo(args.Key, int64(len(args.Key)), itr)
 
 	// Iterate over keys store them in map if prefix
 	for C.rocksdb_iter_valid(itr) != 0 {
-		fKey, fVal := getKeyVal(itr)
-		log.Trace("RangeQuery - Seeked to : ", fKey)
+		k, v := getKeyVal(itr)
 
 		// check if passed key is prefix of fetched key or exit
-		if !strings.HasPrefix(fKey, prefix) {
+		if (args.Prefix != "") && (!strings.HasPrefix(k, args.Prefix)) {
 			endReached = true
 			break
 		}
 
 		// check if the key-val can be stored in the buffer
-		entrySize := len([]byte(fKey)) + len([]byte(fVal)) + encodingOverhead
-		if (int64(mapSize) + int64(entrySize)) > bufSize {
-			log.Trace("RangeQuery -  Reply buffer is full - dumping map to client")
-			res.LastKey = fKey
+		entrySize := len([]byte(k)) + len([]byte(v)) + encodingOverhead
+		if (int64(mapSize) + int64(entrySize)) > args.BufSize {
+			res.LastKey = k
 			break
 		}
 		mapSize = mapSize + entrySize + encodingOverhead
-		res.ResultMap[fKey] = fVal
+		res.ResultMap[k] = v
 
 		C.rocksdb_iter_next(itr)
 	}
 
 	//Destroy ropts for consistent mode only when reached the end of the range query
 	//Wheras, destroy ropts in every iteration if the range query is not consistent
-	if C.rocksdb_iter_valid(itr) == 0 || endReached == true {
-		destroyRopts(res.SeqNum, ropts, consistent)
-	} else if !consistent {
-		destroyRopts(res.SeqNum, ropts, consistent)
+	if C.rocksdb_iter_valid(itr) == 0 || endReached == true || !args.Consistent {
+		destroyRopts(res.SeqNum, ropts, args.Consistent)
 	}
 
 	//Free the iterator and memory
@@ -712,24 +596,6 @@ func pmdbFetchRange(key string, key_len int64,
 		lookup_err = nil
 	}
 	return res, lookup_err
-}
-
-// Public method for read all KV from the column family
-func (*PmdbServerObject) ReadAllKV(app_id unsafe.Pointer, key string,
-	key_len int64, bufSize int64, gocolfamily string) (map[string][]byte, string, error) {
-
-	return pmdbFetchAllKV(key, key_len, bufSize, gocolfamily)
-}
-
-func RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
-}
-
-// Public method for range read KV
-func (*PmdbServerObject) RangeReadKV(app_id unsafe.Pointer, key string,
-	key_len int64, prefix string, bufSize int64, consistent bool, seqNum uint64, gocolfamily string) (*RangeReadResult, error) {
-	return pmdbFetchRange(key, key_len, prefix, bufSize, consistent, seqNum, gocolfamily)
 }
 
 func PmdbCopyBytesToBuffer(ed []byte,
@@ -761,12 +627,6 @@ func PmdbCopyDataToBuffer(ed interface{}, buffer unsafe.Pointer) (int64, error) 
 	return key_len, nil
 }
 
-// Public method version of PmdbCopyDataToBuffer
-func (*PmdbServerObject) CopyDataToBuffer(ed interface{},
-	buffer unsafe.Pointer) (int64, error) {
-	return PmdbCopyDataToBuffer(ed, buffer)
-}
-
 func (*PmdbServerObject) GetCurrentHybridTime() float64 {
 	//TODO: Update this code
 	return 0.0
@@ -795,35 +655,22 @@ func PmdbIsLeader() bool {
 	return bool(rc)
 }
 
-func PmdbInitRPCMsg(rcm *C.struct_raft_client_rpc_msg, dataSize uint32) {
+func pmdbInitRPCMsg(rcm *C.struct_raft_client_rpc_msg, dataSize uint32) {
 	rcm.rcrm_type = C.RAFT_CLIENT_RPC_MSG_TYPE_WRITE
 	rcm.rcrm_version = 0
 	rcm.rcrm_data_size = C.uint32_t(dataSize)
 }
 
-func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
-	var appBuf bytes.Buffer
+func PmdbEnqueuePutRequest(areq []byte, rtype int, rncui string, wsn int64) int {
 	var req PumiceDBCommon.PumiceRequest
-	var rncui_id C.struct_raft_net_client_user_id
-	var obj_id *C.pmdb_obj_id_t
-
-	//Encode the application request structure.
-	enc := gob.NewEncoder(&appBuf)
-	err := enc.Encode(appReq)
-	if err != nil {
-		log.Error("Failed to encode the stale lease processing request")
-		return -1
-	}
-
-	uuid := uuid.NewV4().String()
-	req.Rncui = fmt.Sprintf("%s:0:0:0:0", uuid)
-	req.ReqType = PumiceDBCommon.LEASE_REQ
-	req.ReqPayload = appBuf.Bytes()
+	req.Rncui = rncui
+	req.ReqType = rtype
+	req.ReqPayload = areq
 
 	//Encode the PumiceRequest
 	var reqBuf bytes.Buffer
 	pumiceEnc := gob.NewEncoder(&reqBuf)
-	err = pumiceEnc.Encode(req)
+	err := pumiceEnc.Encode(req)
 	if err != nil {
 		log.Error(err)
 		return -1
@@ -840,27 +687,29 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 
 	dsize := int64(len(data))
 	rmsize := C.sizeof_struct_raft_client_rpc_msg
-	pmsize := C.sizeof_struct_pmdb_msg
 	pmdSize := C.sizeof_struct_pmdb_msg + C.int64_t(dsize)
 
 	//total size of the request buffer
-	totalSize := int64(rmsize) + int64(pmsize) + dsize
+	totalSize := int64(rmsize) + int64(pmdSize)
 	buf := C.malloc(C.size_t(totalSize))
+	defer C.free(buf)
 
 	//Populate raft_client_rpc_msg structure
 	rcm := (*C.struct_raft_client_rpc_msg)(buf)
-	PmdbInitRPCMsg(rcm, uint32(pmdSize))
+	pmdbInitRPCMsg(rcm, uint32(pmdSize))
 
 	// Get the pointer for rcrm_data
 	rptr := unsafe.Pointer(uintptr(buf) + C.sizeof_struct_raft_client_rpc_msg)
 
 	//Prepare pmdb_obj_id
+	var rncui_id C.struct_raft_net_client_user_id
+	var obj_id *C.pmdb_obj_id_t
 	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
 	obj_id = (*C.pmdb_obj_id_t)(&rncui_id.rncui_key)
 
 	//Populate pmdb_msg structure
 	pmdb_msg := (*C.struct_pmdb_msg)(rptr)
-	C.pmdb_direct_msg_init(pmdb_msg, obj_id, C.uint32_t(dsize), C.pmdb_op_write, 0)
+	C.pmdb_direct_msg_init(pmdb_msg, obj_id, C.uint32_t(dsize), C.pmdb_op_write, C.int64_t(wsn))
 
 	//Get the pointer to pmdbrm_data and store the PumiceRequest
 	dataPtr := unsafe.Pointer(uintptr(rptr) + C.sizeof_struct_pmdb_msg)
@@ -868,7 +717,6 @@ func PmdbEnqueueDirectWriteRequest(appReq interface{}) int {
 
 	//Enqueue the direct request
 	ret := C.raft_server_enq_direct_raft_req_from_leader((*C.char)(buf), C.int64_t(totalSize))
-	C.free(buf)
 
 	return int(ret)
 }
