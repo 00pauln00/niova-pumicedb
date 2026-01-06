@@ -17,6 +17,7 @@ export CGO_LDFLAGS="-L$BIN_PATH/lib"
 export CGO_CFLAGS="-I$BIN_PATH/include/niova"
 export LD_LIBRARY_PATH="$BIN_PATH/lib"
 export PATH="$PATH:$GO_PATH"
+export NIOVA_APPLY_HANDLER_VERSION=1
 
 while IFS= read -r line; do
    recipe_list+=("$line")
@@ -24,30 +25,32 @@ done <$RECIPE_FILE
 for recipe in "${recipe_list[@]}"
 do
    SECONDS=0
+   ansible_playbook_rc=0
    if [ $# -eq 7 ]
    then
       GO_PATH=${7}
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE holon.yml
-      ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE holon.yml
+      ansible_playbook_rc=$?
    elif [ $# -eq 6 ]
    then
       NNISD=${6}
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e nnisds=$NNISD holon.yml
+      ansible_playbook_rc=$?
    elif [[ ( $# -eq 9 ) && $APP_TYPE == "controlplane" ]]
    then
       NCLIENTS=${8}
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e app_type=$APP_TYPE -e nlookouts=$NLOOKOUT -e nnisds=$NNISD -e nclients=$NCLIENTS holon.yml
-      ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e app_type=$APP_TYPE -e nlookouts=$NLOOKOUT -e nnisds=$NNISD -e nclients=$NCLIENTS holon.yml
+      ansible_playbook_rc=$?
    else
       ENABLE_COALESCED_WR=${7}
       ENABLE_SYNC=${8}
       GO_PATH=${9}
       ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE -e coalesced_wr=$ENABLE_COALESCED_WR -e sync=$ENABLE_SYNC holon.yml
-      ansible-playbook -e 'srv_port=4510' -e npeers=$NPEERS -e dir_path=$LOG_PATH -e 'client_port=14000' -e recipe=$recipe -e 'backend_type=pumicedb' -e app_type=$APP_TYPE -e coalesced_wr=$ENABLE_COALESCED_WR -e sync=$ENABLE_SYNC holon.yml
+      ansible_playbook_rc=$?
    fi
    duration=$SECONDS
    echo "$recipe took $duration seconds "
-   if [ $? -ne 0 ]
+   if [ $ansible_playbook_rc -ne 0 ]
    then
       echo "Recipe: $recipe failed"
       exit 1

@@ -57,7 +57,7 @@ runs:
         git submodule init
         git submodule update
         git fetch origin
-        git checkout fix/bulk-recovery-rocksdb-assert
+        git checkout main
       shell: bash
 
 # niova-core submodule init
@@ -101,7 +101,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       ref: fix/bulk-recovery-recipes
+       ref: fix/bulk-recovery-recipes-1
        path: ./holon
 
     - name: Copy holon repo
