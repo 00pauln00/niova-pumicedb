@@ -56,6 +56,11 @@ jobs:
         sudo chmod 755 ~
         sudo service ssh restart
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
            ../run-recipes.sh '/home/runner/work/niovad/niovad/build_dir/holon'
