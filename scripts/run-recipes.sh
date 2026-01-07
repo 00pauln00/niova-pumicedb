@@ -18,7 +18,7 @@ export CGO_CFLAGS="-I$BIN_PATH/include/niova"
 export LD_LIBRARY_PATH="$BIN_PATH/lib"
 export NIOVA_APPLY_HANDLER_VERSION=0
 export PATH="$PATH:$GO_PATH"
-export NIOVA_APPLY_HANDLER_VERSION=1
+export NIOVA_APPLY_HANDLER_VERSION=0
 
 while IFS= read -r line; do
    recipe_list+=("$line")
