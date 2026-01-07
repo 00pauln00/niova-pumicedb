@@ -1,3 +1,4 @@
+bulk_recovery_with_emptyDB.yml
 bulk_recovery_rsync_process.yml
 bulk_recovery_with_staleDB.yml
 bulk_recovery_with_forced_leader_accepting_writes.yml
