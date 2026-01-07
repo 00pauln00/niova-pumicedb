@@ -56,8 +56,8 @@ jobs:
         sudo chmod 755 ~
         sudo service ssh restart
 
-    - name: deebugger for bulk recovery
-      uses: csexton/debugger-action@master
+    # - name: deebugger for bulk recovery
+    #   uses: csexton/debugger-action@master
 
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
