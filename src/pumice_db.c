@@ -877,7 +877,8 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     if (*continue_wr)
     {
         rncr->rncr_app_data.rncr_app_data_size = rc;
-    } else
+    } 
+    else
     {
         pmdb_reply->pmdbrm_data_size = rc;
         reply->rcrm_data_size += (uint32_t)rc;
