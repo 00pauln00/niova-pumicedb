@@ -3,10 +3,12 @@ package pumiceclient
 import (
 	"errors"
 	"fmt"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"strconv"
 	"syscall"
 	"unsafe"
+
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	gopointer "github.com/mattn/go-pointer"
 
 	"github.com/google/uuid"
@@ -28,10 +30,10 @@ import "C"
 
 type PmdbReq struct {
 	Rncui       string
-	ReqType		int
-	Request  	[]byte
-	Reply    	*[]byte
-	GetReply 	int
+	ReqType     int
+	Request     []byte
+	Reply       *[]byte
+	GetReply    int
 	WriteSeqNum int64
 	ZeroCopyObj *RDZeroCopyObj
 }
@@ -42,7 +44,7 @@ type PmdbClientObj struct {
 	clientUUID  *C.char
 	initialized bool
 	//Deprecated fields
-	AppUUID     string
+	AppUUID string
 	//Write sequence number should be maintained by application
 	WriteSeqNum int64
 }
@@ -82,7 +84,7 @@ func CToGoString(cstring *C.char) string {
 	return C.GoString(cstring)
 }
 
-//Get PumiceRequest in common format
+// Get PumiceRequest in common format
 func pmdbreqwrap(ra *PmdbReq) (*C.char, int64) {
 	// get bytes for requestResponse.Request and
 	// convert PumiceDBCommon.PumiceRequest
@@ -146,7 +148,7 @@ func (pco *PmdbClientObj) Get(ra *PmdbReq) error {
 	return nil
 }
 
-//Read the value of key on the client the application passed buffer
+// Read the value of key on the client the application passed buffer
 func (pco *PmdbClientObj) GetZeroCopy(ra *PmdbReq) error {
 
 	var len int64
@@ -164,7 +166,7 @@ func (pco *PmdbClientObj) GetZeroCopy(ra *PmdbReq) error {
 		len, ra.ZeroCopyObj)
 }
 
-//Get the Leader UUID.
+// Get the Leader UUID.
 func (pco *PmdbClientObj) PmdbGetLeader() (uuid.UUID, error) {
 
 	var leader_info C.raft_client_leader_info_t
@@ -189,10 +191,9 @@ func PmdbAsyncReqCompletionCB(args unsafe.Pointer, size C.ssize_t) {
 // Call the pmdb C library function to write the application data.
 // If application expects response on write operation,
 // get_response should be 1
-func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64, 
+func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	obj *C.char, len int64, get_response C.int, replySize *int64) (unsafe.Pointer, error) {
 
-	
 	var rncui_id C.struct_raft_net_client_user_id
 	rncuiStrC := GoToCString(rncui)
 	defer FreeCMem(rncuiStrC)
@@ -203,7 +204,7 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	}
 
 	//To respect CGO memory invarients of 2nd level pointers
-	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	stat := (*C.pmdb_obj_stat_t)(C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
 	stat.sequence_num = C.int64_t(writeSeqNo)
 	defer C.free(unsafe.Pointer(stat))
 
@@ -215,20 +216,20 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	cb := C.getAsyncReqCompCB()
 
 	var pmdb_req_opt C.pmdb_request_opts_t
-	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, get_response, stat, cb, args, 
-								nil, 0, 0);
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, get_response, stat, cb, args,
+		nil, 0, 0)
 
 	rc = C.PmdbObjPutX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
 		obj, GoToCSize_t(len), &pmdb_req_opt)
 
 	if rc != 0 {
-		return nil, fmt.Errorf("PmdbObjPutX(): %d", rc)
+		return nil, pumiceerr.TranslatePumiceReqErrCode(int(rc))
 	}
 
 	//Await for the request response!
 	err := <-reqComplCh
 	if err != 0 {
-		return nil, fmt.Errorf("Put operation failed: %d", err)
+		return nil, pumiceerr.TranslatePumiceReqErrCode(err)
 	}
 
 	get_response_go := int(get_response)
@@ -241,7 +242,7 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 	return nil, nil
 }
 
-//Call the pmdb C library function to read the value for the key.
+// Call the pmdb C library function to read the value for the key.
 func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 	replySize *int64) (unsafe.Pointer, error) {
 
@@ -251,7 +252,7 @@ func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 	C.raft_net_client_user_id_parse(rncuiStrC, &rncui_id, 0)
 
 	//To respect CGO memory invarients of 2nd level pointers
-	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	stat := (*C.pmdb_obj_stat_t)(C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
 	defer C.free(unsafe.Pointer(stat))
 
 	//Get the completion callback function pointer
@@ -262,40 +263,32 @@ func (pco *PmdbClientObj) get(rncui string, obj *C.char, len int64,
 	cb := C.getAsyncReqCompCB()
 
 	var pmdb_req_opt C.pmdb_request_opts_t
-	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args, 
-								nil, 0, 0);
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args,
+		nil, 0, 0)
 
 	rc := C.PmdbObjGetX(pco.pmdb, (*C.pmdb_obj_id_t)(&rncui_id.rncui_key),
-			obj, GoToCSize_t(len), &pmdb_req_opt)
+		obj, GoToCSize_t(len), &pmdb_req_opt)
 	if rc != 0 {
-		return nil, fmt.Errorf("PmdbObjGetX(): %d", rc)
+		return nil, pumiceerr.TranslatePumiceReqErrCode(int(rc))
 	}
 
 	err := <-reqComplCh
 	if err != 0 {
-		return nil, fmt.Errorf("PmdbObjGetX(): %d", err)
+		return nil, pumiceerr.TranslatePumiceReqErrCode(int(err))
 	}
 
-	vsize := stat.reply_size
+	*replySize = int64(stat.reply_size)
 	reply_buf := stat.reply_buffer
-
-	if reply_buf == nil {
-		*replySize = 0
-		err := errors.New("Key not found")
-		return nil, err
-	}
-
-	*replySize = int64(vsize)
 
 	return reply_buf, nil
 }
 
-//Call the pmdb C library function to read the value for the key.
+// Call the pmdb C library function to read the value for the key.
 func (pco *PmdbClientObj) get_any(obj *C.char, len int64,
 	replySize *int64) (unsafe.Pointer, error) {
 
 	//To respect CGO memory invarients of 2nd level pointers
-	stat := (*C.pmdb_obj_stat_t) (C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
+	stat := (*C.pmdb_obj_stat_t)(C.malloc(C.size_t(unsafe.Sizeof(C.pmdb_obj_stat_t{}))))
 	defer C.free(unsafe.Pointer(stat))
 
 	//Get the completion callback function pointer
@@ -306,8 +299,8 @@ func (pco *PmdbClientObj) get_any(obj *C.char, len int64,
 	cb := C.getAsyncReqCompCB()
 
 	var pmdb_req_opt C.pmdb_request_opts_t
-	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args, 
-								nil, 0, 0);
+	C.pmdb_request_options_init(&pmdb_req_opt, 1, 1, 1, stat, cb, args,
+		nil, 0, 0)
 
 	rc := C.PmdbObjGetAnyX(pco.pmdb, obj, GoToCSize_t(len), &pmdb_req_opt)
 	if rc != 0 {
@@ -333,12 +326,12 @@ func (pco *PmdbClientObj) get_any(obj *C.char, len int64,
 	return reply_buf, nil
 }
 
-//Allocate memory in C heap
+// Allocate memory in C heap
 func (pco *RDZeroCopyObj) AllocateCMem(size int64) unsafe.Pointer {
 	return C.malloc(C.size_t(size))
 }
 
-//Relase the C memory allocated for reading the value
+// Relase the C memory allocated for reading the value
 func (pco *RDZeroCopyObj) ReleaseCMem() {
 	C.free(pco.buffer)
 }
@@ -407,7 +400,7 @@ func (pco *PmdbClientObj) Stop() error {
 	return nil
 }
 
-//Start the Pmdb client instance
+// Start the Pmdb client instance
 func (pco *PmdbClientObj) Start() error {
 	if pco.initialized == true {
 		return errors.New("Client object is already initialized")
