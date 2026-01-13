@@ -104,9 +104,12 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	fmt.Println("fpAppValue", fpAppValue)
 
 	//Write key,values.
-	rc := applyArgs.PmdbWriteKV(colmfamily, fpAppKey, fpAppValue)
+	err = applyArgs.PmdbWriteKV(colmfamily, fpAppKey, fpAppValue)
+	if err != nil {
+		log.Error("Failed to write key-value to pumicedb: ", err)
+	}
 
-	return int64(rc)
+	return 0
 }
 
 // Method for read callback.

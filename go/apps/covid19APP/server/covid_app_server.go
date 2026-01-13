@@ -188,9 +188,12 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	rc := applyArgs.PmdbWriteKV(colmfamily, applyCovid.Location, covidDataVal)
+	err = applyArgs.PmdbWriteKV(colmfamily, applyCovid.Location, covidDataVal)
+	if err != nil {
+		log.Error("Failed to write key-value to pumicedb: ", err)
+	}
 
-	return int64(rc)
+	return 0
 }
 
 func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {

@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	gopointer "github.com/mattn/go-pointer"
 
 	log "github.com/sirupsen/logrus"
@@ -424,7 +425,7 @@ func (pca *PmdbCbArgs) PmdbReadKV(cf string, key string) ([]byte, error) {
 	return result, err
 }
 
-func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) int {
+func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) error {
 
 	ck := GoToCString(key)
 	defer FreeCMem(ck)
@@ -439,15 +440,10 @@ func (pca *PmdbCbArgs) PmdbDeleteKV(cf, key string) int {
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbDeleteKV(capp_id, pca.wsHandler, ck, ckl, nil, unsafe.Pointer(cfh))
 
-	go_rc := int(rc)
-	if go_rc != 0 {
-		log.Error("DeleteKV failed with error: ", go_rc)
-	}
-
-	return go_rc
+	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
 }
 
-func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) int {
+func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) error {
 
 	ck := GoToCString(key)
 	defer FreeCMem(ck)
@@ -467,12 +463,7 @@ func (pca *PmdbCbArgs) PmdbWriteKV(cf, key, val string) int {
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbWriteKV(capp_id, pca.wsHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
 
-	go_rc := int(rc)
-	if go_rc != 0 {
-		log.Error("WriteKV failed with error: ", go_rc)
-	}
-
-	return go_rc
+	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
 }
 
 // Wrapper for rocksdb_iter_seek -

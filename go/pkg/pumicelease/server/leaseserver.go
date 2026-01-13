@@ -414,10 +414,10 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 
 	byteToStr := string(valueBytes.Bytes())
 
-	rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, handler.LeaseReq.Resource.String(), byteToStr)
-	if rc < 0 {
+	err = handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, handler.LeaseReq.Resource.String(), byteToStr)
+	if err != nil {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
-		log.Error("Value not written to rocksdb")
+		log.Error("Value not written to rocksdb ", err)
 		return -1
 	} else {
 		lop.LeaseMetaInfo.Status = leaseLib.SUCCESS
@@ -466,9 +466,9 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		handler.LeaseServerObj.leaseLock.Unlock()
 
 		byteToStr := string(valueBytes.Bytes())
-		rc := handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, resource.String(), byteToStr)
-		if rc < 0 {
-			log.Error("Expired lease update to RocksDB failed")
+		err = handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, resource.String(), byteToStr)
+		if err != nil {
+			log.Error("Expired lease update to RocksDB failed ", err)
 		}
 	}
 }
