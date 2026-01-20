@@ -136,7 +136,8 @@ pmdb_client_request_rw_completion(struct pmdb_client_request *pcreq,
  * from the pumice server and the raft layer. Either it can be logging
  * or translating the error codes.
  */
-ssize_t pumice_client_error_handler(ssize_t status)
+ssize_t
+pumice_client_error_handler(ssize_t status)
 {
     switch (status)
     {
