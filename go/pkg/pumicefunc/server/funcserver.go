@@ -17,6 +17,7 @@ type FuncServer struct {
 	WritePrepFuncs map[string]func(args ...interface{}) (interface{}, error)
 	ApplyFuncs     map[string]func(args ...interface{}) (interface{}, error)
 	ReadFuncs      map[string]func(args ...interface{}) (interface{}, error)
+	InitFuncs      map[string]func(*pmsvr.PmdbCbArgs)
 }
 
 func NewFuncServer() *FuncServer {
@@ -24,6 +25,7 @@ func NewFuncServer() *FuncServer {
 		WritePrepFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
 		ApplyFuncs:     make(map[string]func(args ...interface{}) (interface{}, error)),
 		ReadFuncs:      make(map[string]func(args ...interface{}) (interface{}, error)),
+		InitFuncs:      make(map[string]func(*pmsvr.PmdbCbArgs)),
 	}
 }
 
@@ -49,6 +51,26 @@ func (fs *FuncServer) RegisterReadFunc(name string, fn func(args ...interface{})
 		panic(fmt.Sprintf("Read function %s already registered", name))
 	}
 	fs.ReadFuncs[name] = fn
+}
+
+// RegisterInitFunc registers an init function with the server.
+// The registered function receives PmdbCbArgs which contains InitState field.
+// Implementations should check InitState to determine if they should execute:
+//
+//	func MyInitFunc(cbArgs *pmsvr.PmdbCbArgs) {
+//	    if cbArgs.InitState != pmsvr.INIT_BECOMING_LEADER_STATE {
+//	        return // Only run when becoming leader
+//	    }
+//	    // ... initialization logic
+//	}
+//
+// Only the first registration for a given name is accepted; subsequent
+// registrations with the same name are ignored.
+func (fs *FuncServer) RegisterInitFunc(name string, fn func(*pmsvr.PmdbCbArgs)) {
+	// Register only if function name doesn't already exist
+	if _, exists := fs.InitFuncs[name]; !exists {
+		fs.InitFuncs[name] = fn
+	}
 }
 
 func decode(payload []byte) (funclib.FuncReq, error) {
@@ -167,6 +189,14 @@ func (fs *FuncServer) Read(rda *pmsvr.PmdbCbArgs) int64 {
 	return -1
 }
 
+// Init executes all registered initialization functions.
+// Each registered init function is responsible for checking InitState
+// and deciding whether to perform its initialization logic.
 func (nso *FuncServer) Init(ipa *pmsvr.PmdbCbArgs) {
+	// execute all registered init functions
+	for _, fn := range nso.InitFuncs {
+		fn(ipa)
+	}
 	return
 }
+

@@ -287,6 +287,9 @@ func goInit(args *C.struct_pumicedb_cb_cargs) {
 	if gcb.LeaseEnabled {
 		gcb.LeaseAPI.Init(&initArgs)
 	}
+	// FuncAPI init functions can check InitState internally
+	// e.g., InitAdmin should only run when INIT_BECOMING_LEADER_STATE
+	gcb.FuncAPI.Init(&initArgs)
 }
 
 //export goFillReply
