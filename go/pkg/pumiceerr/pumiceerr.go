@@ -8,21 +8,21 @@ import (
 
 // PumiceError represents a custom error type for PumiceDB
 var (
-	ErrRNCUIAlready       = errors.New("Write sequence number already used for the RNCUI")
-	ErrRNCUIINProgress    = errors.New("Write sequence in progress of apply for the RNCUI")
-	ErrRNCUIWayAhead      = errors.New("Write sequence way ahead")
-	ErrRNCUIWrongClient   = errors.New("RNCUI used by wrong pumice client")
-	ErrRNCUIAlreadyQueued = errors.New("RNCUI already queued in the pumice client")
+	ErrRNCUISequenceUsed        = errors.New("Write sequence number already used for the RNCUI")
+	ErrRNCUISequenceInProgress  = errors.New("Write sequence in progress of apply for the RNCUI")
+	ErrRNCUISequenceTooFarAhead = errors.New("Write sequence way ahead")
+	ErrRNCUIClientMismatch      = errors.New("RNCUI used by wrong pumice client")
+	ErrRNCUIAlreadyQueued       = errors.New("RNCUI already queued in the pumice client")
 
-	ErrInvalid         = errors.New("Invalid initialization")
-	ErrNoMem           = errors.New("No memory in pumice client/server")
-	ErrTooBIG          = errors.New("The application message is too big, expects 41,93,704 bytes max (4MB - 88 bytes - 512 bytes)")
-	ErrNoLeader        = errors.New("No pumice leader identified yet")
-	ErrNoSpace         = errors.New("Pumice client heap is full")
-	ErrAlreadyQ        = errors.New("Request already queued for the same RNCUI in the pumice client")
-	ErrTimeout         = errors.New("Operation timed out at the pumice client")
-	ErrTryAgain        = errors.New("Temporary failure in the raft side, try again")
-	ErrNoSpaceOnServer = errors.New("No space left on write supplement buffer on the pumice server")
+	ErrInvalidInitialization = errors.New("Invalid initialization")
+	ErrOutOfMemory           = errors.New("No memory in pumice client/server")
+	ErrMessageTooLarge       = errors.New("The application message is too big, expects 41,93,704 bytes max (4MB - 88 bytes - 512 bytes)")
+	ErrNoLeader              = errors.New("No pumice leader identified yet")
+	ErrClientOutOfSpace      = errors.New("Pumice client heap is full")
+	ErrRequestAlreadyQueued  = errors.New("Request already queued for the same RNCUI in the pumice client")
+	ErrTimeout               = errors.New("Operation timed out at the pumice client")
+	ErrTryAgain              = errors.New("Temporary failure in the raft side, try again")
+	ErrNoSpaceOnServer       = errors.New("No space left on write supplement buffer on the pumice server")
 )
 
 // TranslatePumiceReqErrCode translates PumiceDB C error codes to Go errors
