@@ -3,6 +3,7 @@ package pumiceerr
 import (
 	"errors"
 	"fmt"
+	"math"
 )
 
 // PumiceError represents a custom error type for PumiceDB
@@ -26,57 +27,57 @@ var (
 
 // TranslatePumiceReqErrCode translates PumiceDB C error codes to Go errors
 func TranslatePumiceReqErrCode(code int) error {
-	switch code {
-	case -144:
+	switch math.Abs(float64(code)) {
+	case 17:
 		//-EALREADY (If in case Req RNCUI is less than to the last RNCUI)
 		return ErrRNCUIAlready
-	case -115:
+	case 115:
 		//-EINPROGRESS (If same RNCUI is in progress of commit)
 		return ErrRNCUIINProgress
-	case -52:
+	case 52:
 		//-EBADE (If the req RNCUI way ahead)
 		return ErrRNCUIWayAhead
-	case -1:
+	case 1:
 		//-EPERM (If two different client uses same RNCUI)
 		return ErrRNCUIWrongClient
-	case -22:
+	case 22:
 		return ErrInvalid
-	case -12:
+	case 12:
 		//ENOMEM
 		return ErrNoMem
-	case -27:
+	case 27:
 		//EFBIG
 		return ErrTooBIG
-	case -107:
+	case 107:
 		//ENOTCONN
 		return ErrNoLeader
-	case -28:
+	case 28:
 		//ENOSPC
 		return ErrNoSpace
-	case -114:
-		//EALREADY
+	case 114:
+		//EBUSY
 		return ErrAlreadyQ
-	case -110:
+	case 110:
 		//ETIMEDOUT
 		return ErrTimeout
-	case -11:
+	case 11:
 		//EAGAIN
 		return ErrTryAgain
 	default:
-		return fmt.Errorf("unknown error code: %d", code)
+		return fmt.Errorf("unknown error code for : %d", code)
 	}
 
 	return nil
 }
 
 func TranslatePumiceServerOpErrCode(code int) error {
-	switch code {
-	case -22:
+	switch math.Abs(float64(code)) {
+	case 22:
 		return ErrInvalid
-	case -12:
+	case 12:
 		//ENOMEM
 		return ErrNoMem
-	case -28:
+	case 28:
 		//ENOSPC
 		return ErrNoSpaceOnServer
 	default:

@@ -874,6 +874,9 @@ pmdb_write_prep_cb(struct raft_net_client_request_handle *rncr,
     if (rc < 0)
         return rc;
     
+    // In case of continue_wr is true, set the rc to app_data_size.
+    // The app data will be forwarded to apply handler later. If not,
+    // set the reply data size in pmdb_reply
     if (*continue_wr)
     {
         rncr->rncr_app_data.rncr_app_data_size = rc;
@@ -948,7 +951,7 @@ pmdb_sm_handler_client_write(struct raft_net_client_request_handle *rncr)
     if (pmdb_req->pmdbrm_write_seqno < obj.pmdb_obj_commit_seqno &&
         obj.pmdb_obj_commit_seqno != RAFT_ENTRY_IDX_ANY)
     {
-        rc = -EALREADY;
+        rc = -EEXIST;
         SIMPLE_LOG_MSG(LL_DEBUG, "rncui seqno < pmdb_obj_commit_seqno");
     }
     else if ((pmdb_req->pmdbrm_write_seqno == obj.pmdb_obj_commit_seqno) &&
