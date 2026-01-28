@@ -30,33 +30,33 @@ func TranslatePumiceReqErrCode(code int) error {
 	switch math.Abs(float64(code)) {
 	case 17:
 		//-EALREADY (If in case Req RNCUI is less than to the last RNCUI)
-		return ErrRNCUIAlready
+		return ErrRNCUISequenceUsed
 	case 115:
 		//-EINPROGRESS (If same RNCUI is in progress of commit)
-		return ErrRNCUIINProgress
+		return ErrRNCUISequenceInProgress
 	case 52:
 		//-EBADE (If the req RNCUI way ahead)
-		return ErrRNCUIWayAhead
+		return ErrRNCUISequenceTooFarAhead
 	case 1:
 		//-EPERM (If two different client uses same RNCUI)
-		return ErrRNCUIWrongClient
+		return ErrRNCUIClientMismatch
 	case 22:
-		return ErrInvalid
+		return ErrInvalidInitialization
 	case 12:
 		//ENOMEM
-		return ErrNoMem
+		return ErrOutOfMemory
 	case 27:
 		//EFBIG
-		return ErrTooBIG
+		return ErrMessageTooLarge
 	case 107:
 		//ENOTCONN
 		return ErrNoLeader
 	case 28:
 		//ENOSPC
-		return ErrNoSpace
+		return ErrClientOutOfSpace
 	case 114:
 		//EBUSY
-		return ErrAlreadyQ
+		return ErrRNCUIAlreadyQueued
 	case 110:
 		//ETIMEDOUT
 		return ErrTimeout
@@ -73,10 +73,10 @@ func TranslatePumiceReqErrCode(code int) error {
 func TranslatePumiceServerOpErrCode(code int) error {
 	switch math.Abs(float64(code)) {
 	case 22:
-		return ErrInvalid
+		return ErrInvalidInitialization
 	case 12:
 		//ENOMEM
-		return ErrNoMem
+		return ErrOutOfMemory
 	case 28:
 		//ENOSPC
 		return ErrNoSpaceOnServer
