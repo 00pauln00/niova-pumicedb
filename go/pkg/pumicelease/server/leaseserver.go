@@ -12,6 +12,7 @@ import (
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	leaseLib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicelease/common"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicestore"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
@@ -414,7 +415,7 @@ func (handler *LeaseServerReqHandler) applyLease() int {
 
 	byteToStr := string(valueBytes.Bytes())
 
-	err = handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, handler.LeaseReq.Resource.String(), byteToStr)
+	err = handler.cbargs.Pstore.Write(handler.LeaseReq.Resource.String(), byteToStr, handler.LeaseServerObj.LeaseColmFam)
 	if err != nil {
 		lop.LeaseMetaInfo.Status = leaseLib.FAILURE
 		log.Error("Value not written to rocksdb ", err)
@@ -466,9 +467,9 @@ func (handler *LeaseServerReqHandler) gcReqHandler() {
 		handler.LeaseServerObj.leaseLock.Unlock()
 
 		byteToStr := string(valueBytes.Bytes())
-		err = handler.cbargs.PmdbWriteKV(handler.LeaseServerObj.LeaseColmFam, resource.String(), byteToStr)
+		err = handler.cbargs.Pstore.Write(resource.String(), byteToStr, handler.LeaseServerObj.LeaseColmFam)
 		if err != nil {
-			log.Error("Expired lease update to RocksDB failed ", err)
+			log.Error("Expired lease update to RocksDB failed")
 		}
 	}
 }
@@ -540,10 +541,10 @@ func (lso *LeaseServerObject) leaderInit() {
 }
 
 func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
-	rrargs := PumiceDBServer.RangeReadArgs{
-		ColFamily: lso.LeaseColmFam,
+	rrargs := pumicestore.RangeReadArgs{
+		Selector: lso.LeaseColmFam,
 	}
-	rrres, _ := cbArgs.PmdbRangeRead(rrargs)
+	rrres, _ := cbArgs.Pstore.RangeRead(rrargs)
 
 	if rrres.ResultMap != nil {
 		//Result of the read
