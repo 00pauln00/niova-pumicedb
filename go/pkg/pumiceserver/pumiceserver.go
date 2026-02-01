@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"unsafe"
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
@@ -135,21 +134,6 @@ func GoToCString(gstring string) *C.char {
 /* Free the C memory */
 func FreeCMem(cstring *C.char) {
 	C.free(unsafe.Pointer(cstring))
-}
-
-/* Typecast Go Int to string */
-func GoIntToString(value int) string {
-	return strconv.Itoa(value)
-}
-
-/* Get length of the Go string */
-func GoStringLen(str string) int {
-	return len(str)
-}
-
-/* Type cast Go int64 to C size_t */
-func GoToCSize_t(glen int64) C.size_t {
-	return C.size_t(glen)
 }
 
 /* Typecast C size_t to Go int64 */
