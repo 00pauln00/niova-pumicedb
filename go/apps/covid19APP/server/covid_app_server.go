@@ -159,7 +159,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Key passed by client: ", applyCovid.Location)
 
 	//Lookup the key first
-	prevResult, err := applyArgs.Pstore.Read(applyCovid.Location, colmfamily)
+	prevResult, err := applyArgs.Store.Read(applyCovid.Location, colmfamily)
 	if err != nil {
 		log.Info("No previous value found for the key: ", applyCovid.Location)
 	}
@@ -188,7 +188,7 @@ func (cso *CovidServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Current covideData values: ", covidDataVal)
 
 	log.Info("Write the KeyValue by calling PmdbWriteKV")
-	err = applyArgs.Pstore.Write(applyCovid.Location, covidDataVal, colmfamily)
+	err = applyArgs.Store.Write(applyCovid.Location, covidDataVal, colmfamily)
 	if err != nil {
 		log.Error("Value not written to rocksdb")
 		return -1
@@ -216,7 +216,7 @@ func (cso *CovidServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Key length: ", keyLen)
 
 	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
-	readResult, readErr := readArgs.Pstore.Read(reqStruct.Location, colmfamily)
+	readResult, readErr := readArgs.Store.Read(reqStruct.Location, colmfamily)
 
 	var splitValues []string
 
@@ -263,7 +263,7 @@ func (cso *CovidServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	key := reqStruct.Location
 
 	// Read the value from the DB
-	readResult, readErr := applyArgs.Pstore.Read(key, colmfamily)
+	readResult, readErr := applyArgs.Store.Read(key, colmfamily)
 	if readErr != nil {
 		log.Error("Failed to read value from DB in FillReply: ", readErr)
 		return -1

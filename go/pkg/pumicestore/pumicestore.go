@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unsafe"
 
+	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -69,9 +70,9 @@ func (s *PumiceStore) Read(key, selector string) ([]byte, error) {
 }
 
 // RangeRead reads a range of key-value pairs.
-func (s *PumiceStore) RangeRead(args RangeReadArgs) (*RangeReadResult, error) {
+func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.RangeReadResult, error) {
 	var lookup_err error
-	res := &RangeReadResult{
+	res := &storageiface.RangeReadResult{
 		ResultMap: make(map[string][]byte),
 		SeqNum:    args.SeqNum,
 	}
@@ -280,4 +281,4 @@ func seekTo(key string, key_len int64, itr *C.rocksdb_iterator_t) {
 }
 
 // Ensure PumiceStore implements the DataStore interface.
-var _ DataStore = &PumiceStore{}
+var _ storageiface.DataStore = &PumiceStore{}

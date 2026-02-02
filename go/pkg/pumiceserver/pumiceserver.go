@@ -10,6 +10,7 @@ import (
 
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumicestore"
+	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 	gopointer "github.com/mattn/go-pointer"
 
 	log "github.com/sirupsen/logrus"
@@ -37,8 +38,8 @@ type PmdbCbArgs struct {
 	ReplyBuf  unsafe.Pointer
 	ReplySize int64
 
-	// Fields for application specific data set in WritePrep stage.
-	// Read in Apply stage.
+	// Fields for application specific data, set in the WritePrep stage.
+	// Read in the Apply stage.
 	AppData     unsafe.Pointer
 	AppDataSize int64
 
@@ -52,8 +53,8 @@ type PmdbCbArgs struct {
 	// Provided for Init handler.
 	InitState int
 
-	// Pumice storage interface
-	Pstore pumicestore.DataStore
+	// Storage interface
+	Store storageiface.DataStore
 
 	// Pumice server handler pointer
 	pumiceHandler unsafe.Pointer
@@ -159,7 +160,7 @@ func pmdbCbArgsInit(cargs *C.struct_pumicedb_cb_cargs,
 	goCbArgs.ReplySize = CToGoInt64(cargs.pcb_reply_bufsz)
 	goCbArgs.InitState = int(cargs.pcb_init)
 	goCbArgs.continueWR = unsafe.Pointer(cargs.pcb_continue_wr)
-	goCbArgs.Pstore = &pumicestore.PumiceStore{
+	goCbArgs.Store = &pumicestore.PumiceStore{
 		Rncui:     unsafe.Pointer(cargs.pcb_userid),
 		WSHandler: unsafe.Pointer(cargs.pcb_pmdb_handler),
 	}

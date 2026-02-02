@@ -151,7 +151,7 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	byteToStr := string(applyNiovaKV.Value)
 	log.Info("Passed by client: ", applyNiovaKV.Key, byteToStr)
 
-	err := applyArgs.Pstore.Write(applyNiovaKV.Key, byteToStr, colmfamily)
+	err := applyArgs.Store.Write(applyNiovaKV.Key, byteToStr, colmfamily)
 	if err != nil {
 		log.Error("Value not written to rocksdb")
 		return -1
@@ -179,7 +179,7 @@ func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Trace("Key length: ", keyLen)
 
 	//Pass the work as key to PmdbReadKV and get the value from pumicedb
-	readResult, readErr := readArgs.Pstore.Read(reqStruct.Key, colmfamily)
+	readResult, readErr := readArgs.Store.Read(reqStruct.Key, colmfamily)
 	var valType []byte
 	var replySize int64
 	var copyErr error

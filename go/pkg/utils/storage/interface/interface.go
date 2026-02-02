@@ -1,4 +1,4 @@
-package pumicestore
+package storageiface
 
 type RangeReadArgs struct {
 	Key        string

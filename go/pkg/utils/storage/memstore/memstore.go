@@ -1,4 +1,6 @@
-package pumicestore
+package memstore
+
+import "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 
 // MemStore is an in-memory key-value store that implements the DataStore interface.
 type MemStore struct {
@@ -23,10 +25,10 @@ func (s *MemStore) Read(key, selector string) ([]byte, error) {
 
 // RangeRead reads a range of key-value pairs.
 // For an in-memory map, this is a simplified implementation.
-func (s *MemStore) RangeRead(args RangeReadArgs) (*RangeReadResult, error) {
+func (s *MemStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.RangeReadResult, error) {
 	//Do prefix matching based lookup
 
-	var result RangeReadResult
+	var result storageiface.RangeReadResult
 	return &result, nil
 }
 
@@ -43,4 +45,4 @@ func (s *MemStore) Delete(key, selector string) error {
 }
 
 // Ensure MemStore implements the DataStore interface.
-var _ DataStore = &MemStore{}
+var _ storageiface.DataStore = &MemStore{}
