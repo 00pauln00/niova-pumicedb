@@ -151,9 +151,12 @@ func (nso *NiovaKVServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	byteToStr := string(applyNiovaKV.Value)
 	log.Info("Passed by client: ", applyNiovaKV.Key, byteToStr)
 
-	rc := applyArgs.PmdbWriteKV(colmfamily, applyNiovaKV.Key, byteToStr)
+	err := applyArgs.PmdbWriteKV(colmfamily, applyNiovaKV.Key, byteToStr)
+	if err != nil {
+		log.Error("Failed to write key-value to pumicedb: ", err)
+	}
 
-	return int64(rc)
+	return 0
 }
 
 func (nso *NiovaKVServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
