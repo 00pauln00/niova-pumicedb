@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,33 +40,32 @@ func (s *PumiceStore) Read(key, selector string) ([]byte, error) {
 	defer FreeCMem(ck)
 	ckl := GoToCSize_t(int64(len(key)))
 
+	//Get the specified rocksdb coloum family struct
 	cfh := C.PmdbCfHandleLookup(ccf)
-
-	ropts := C.rocksdb_readoptions_create()
 
 	var cerr *C.char
 	var cvl C.size_t
 
+	ropts := C.rocksdb_readoptions_create()
+	/*
+		rockdb_get_cf returns the value buffer(cv) of size(cvl) for the key(ckl)
+		from the coloumn family(cfh), if the operation errors, the error is filled in cerr
+	*/
 	cv := C.rocksdb_get_cf(C.PmdbGetRocksDB(), ropts, cfh, ck, ckl, &cvl, &cerr)
-
 	C.rocksdb_readoptions_destroy(ropts)
 
-	var result []byte
-	var err error
-
-	if err != nil {
+	if cerr != nil {
 		log.Error("PmdbReadKV: rocksdb_get_cf failed with error: ", C.GoString(cerr))
-		err = errors.New("rocksdb_get_cf failed")
 		C.rocksdb_free(unsafe.Pointer(cerr))
+		return nil, pumiceerr.ErrReadFromStorage
 	}
 
+	var result []byte
 	if cv != nil {
 		result = C.GoBytes(unsafe.Pointer(cv), C.int(cvl))
-		err = nil
 		C.rocksdb_free(unsafe.Pointer(cv))
 	}
 
-	log.Trace("Result is :", result)
 	return result, nil
 }
 
@@ -152,12 +152,7 @@ func (s *PumiceStore) Write(key, value, selector string) error {
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbWriteKV(capp_id, s.WSHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
 
-	go_rc := int(rc)
-	if go_rc != 0 {
-		log.Error("WriteKV failed with error: ", go_rc)
-	}
-
-	return nil
+	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
 }
 
 // Delete deletes a key.
@@ -176,12 +171,7 @@ func (s *PumiceStore) Delete(key, selector string) error {
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbDeleteKV(capp_id, s.WSHandler, ck, ckl, nil, unsafe.Pointer(cfh))
 
-	go_rc := int(rc)
-	if go_rc != 0 {
-		log.Error("DeleteKV failed with error: ", go_rc)
-	}
-
-	return nil
+	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
 }
 
 func createRopts(consistent bool, seqNum *uint64) (*C.rocksdb_readoptions_t, bool) {
