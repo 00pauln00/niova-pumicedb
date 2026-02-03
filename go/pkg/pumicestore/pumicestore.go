@@ -71,7 +71,6 @@ func (s *PumiceStore) Read(key, selector string) ([]byte, error) {
 
 // RangeRead reads a range of key-value pairs.
 func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.RangeReadResult, error) {
-	var lookup_err error
 	res := &storageiface.RangeReadResult{
 		ResultMap: make(map[string][]byte),
 		SeqNum:    args.SeqNum,
@@ -108,7 +107,7 @@ func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.
 			res.LastKey = k
 			break
 		}
-		mapSize = mapSize + entrySize + encodingOverhead
+		mapSize = mapSize + entrySize
 		res.ResultMap[k] = v
 
 		C.rocksdb_iter_next(itr)
@@ -125,11 +124,10 @@ func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.
 	FreeCMem(cf)
 
 	if len(res.ResultMap) == 0 {
-		lookup_err = errors.New("Failed to lookup for key")
-	} else {
-		lookup_err = nil
+		return nil, errors.New("Failed to lookup for key")
 	}
-	return res, lookup_err
+
+	return res, nil
 }
 
 // Write writes a key-value pair.
