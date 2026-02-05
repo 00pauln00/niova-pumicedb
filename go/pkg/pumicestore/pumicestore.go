@@ -148,9 +148,11 @@ func (s *PumiceStore) Write(key, value, selector string) error {
 	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
-	rc := C.PmdbWriteKV(capp_id, s.WSHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
+	if int(rc) != 0 {
+		return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
+	}
 
-	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
+	return nil
 }
 
 // Delete deletes a key.
@@ -168,8 +170,11 @@ func (s *PumiceStore) Delete(key, selector string) error {
 
 	//Calling pmdb library function to write Key-Value.
 	rc := C.PmdbDeleteKV(capp_id, s.WSHandler, ck, ckl, nil, unsafe.Pointer(cfh))
+	if int(rc) != 0 {
+		return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
+	}
 
-	return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
+	return nil
 }
 
 func createRopts(consistent bool, seqNum *uint64) (*C.rocksdb_readoptions_t, bool) {
