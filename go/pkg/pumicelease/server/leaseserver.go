@@ -543,7 +543,11 @@ func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
 	rrargs := PumiceDBServer.RangeReadArgs{
 		ColFamily: lso.LeaseColmFam,
 	}
-	rrres, _ := cbArgs.PmdbRangeRead(rrargs)
+	rrres, err := cbArgs.PmdbRangeRead(rrargs)
+	if err != nil {
+		log.Error("Failed to read from PumicDB: ", err)
+		return
+	}
 
 	if rrres.ResultMap != nil {
 		//Result of the read
