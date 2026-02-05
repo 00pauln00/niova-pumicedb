@@ -148,6 +148,7 @@ func (s *PumiceStore) Write(key, value, selector string) error {
 	cfh := C.PmdbCfHandleLookup(ccf)
 
 	//Calling pmdb library function to write Key-Value.
+	rc := C.PmdbWriteKV(capp_id, s.WSHandler, ck, ckl, cv, cvl, nil, unsafe.Pointer(cfh))
 	if int(rc) != 0 {
 		return pumiceerr.TranslatePumiceServerOpErrCode(int(rc))
 	}
