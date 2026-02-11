@@ -525,11 +525,12 @@ func (lso *LeaseServerObject) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 func (lso *LeaseServerObject) leaderInit() {
 	for e := lso.listObj.Front(); e != nil; e = e.Next() {
 		if lo, ok := e.Value.(*leaseLib.LeaseInfo); ok {
+			// Update leader Term
+			rc := lso.GetLeaderTimeStamp(&lo.LeaseMetaInfo.TimeStamp)
+			if rc != nil {
+				log.Error("Unable to get timestamp (InitLeader)")
+			}
 			if lo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
-				rc := lso.GetLeaderTimeStamp(&lo.LeaseMetaInfo.TimeStamp)
-				if rc != nil {
-					log.Error("Unable to get timestamp (InitLeader)")
-				}
 				lo.LeaseMetaInfo.TTL = ttlDefault
 				lo.LeaseMetaInfo.LeaseState = leaseLib.GRANTED
 			} else {
@@ -558,11 +559,9 @@ func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
 			}
 			kuuid, _ := uuid.FromString(key)
 			lso.LeaseMap[kuuid] = &leaseInfo
-			if leaseInfo.LeaseMetaInfo.LeaseState != leaseLib.EXPIRED {
-				leaseInfo.ListElement = &list.Element{}
-				leaseInfo.ListElement.Value = &leaseInfo
-				lso.listOperation(&leaseInfo, PUSH, false)
-			}
+			leaseInfo.ListElement = &list.Element{}
+			leaseInfo.ListElement.Value = &leaseInfo
+			lso.listOperation(&leaseInfo, PUSH, false)
 			delete(rrres.ResultMap, key)
 		}
 	}
