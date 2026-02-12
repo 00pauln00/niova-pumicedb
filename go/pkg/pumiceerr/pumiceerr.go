@@ -23,6 +23,7 @@ var (
 	ErrTimeout               = errors.New("Operation timed out at the pumice client")
 	ErrTryAgain              = errors.New("Temporary failure in the raft side, try again")
 	ErrNoSpaceOnServer       = errors.New("No space left on write supplement buffer on the pumice server")
+	ErrReadFromStorage       = errors.New("Failed to read from storage")
 )
 
 // TranslatePumiceReqErrCode translates PumiceDB C error codes to Go errors

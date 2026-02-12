@@ -84,7 +84,7 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	fpAppKey := strconv.Itoa(int(data.RestaurantId))
 
 	//Lookup for the key if it is already present.
-	prevValue, err := applyArgs.PmdbReadKV(colmfamily, fpAppKey)
+	prevValue, err := applyArgs.Store.Read(fpAppKey, colmfamily)
 
 	//If previous value is not null, update value of votes.
 	if err == nil {
@@ -104,9 +104,10 @@ func (fpso *FoodpalaceServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 
 	fmt.Println("fpAppValue", fpAppValue)
 
 	//Write key,values.
-	err = applyArgs.PmdbWriteKV(colmfamily, fpAppKey, fpAppValue)
+	err = applyArgs.Store.Write(fpAppKey, fpAppValue, colmfamily)
 	if err != nil {
-		log.Error("Failed to write key-value to pumicedb: ", err)
+		log.Error("Value not written to rocksdb")
+		return -1
 	}
 
 	return 0
@@ -128,7 +129,7 @@ func (fpso *FoodpalaceServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	//Typecast RestaurantId into string.
 	fappKey := strconv.Itoa(int(readReqData.RestaurantId))
 
-	result, readErr := readArgs.PmdbReadKV(colmfamily, fappKey)
+	result, readErr := readArgs.Store.Read(fappKey, colmfamily)
 	if readErr == nil {
 		//Split the result to get respective values.
 		resultStr := string(result[:])
