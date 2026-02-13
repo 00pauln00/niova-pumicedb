@@ -17,7 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ttlDefault = 15
+var ttlDefault = 25
 var gcTimeout = 35
 
 const MAX_SINGLE_GC_REQ = 100
@@ -542,33 +542,53 @@ func (lso *LeaseServerObject) leaderInit() {
 }
 
 func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
-	rrargs := storageiface.RangeReadArgs{
-		Selector: lso.LeaseColmFam,
-	}
-	rrres, err := cbArgs.Store.RangeRead(rrargs)
-	if err != nil {
-		log.Error("Failed to read from PumicDB: ", err)
-		return
-	}
+	var startKey string // start from beginning
 
-	if rrres.ResultMap != nil {
-		//Result of the read
-		for key, value := range rrres.ResultMap {
-			//Decode the request structure sent by client.
-			var leaseInfo leaseLib.LeaseInfo
-			dec := gob.NewDecoder(bytes.NewBuffer(value))
-			decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
-			if decodeErr != nil {
-				log.Error("Failed to decode the read request : ", decodeErr)
-				return
-			}
-			kuuid, _ := uuid.FromString(key)
-			lso.LeaseMap[kuuid] = &leaseInfo
-			leaseInfo.ListElement = &list.Element{}
-			leaseInfo.ListElement.Value = &leaseInfo
-			lso.listOperation(&leaseInfo, PUSH, false)
-			delete(rrres.ResultMap, key)
+	for {
+		rrargs := storageiface.RangeReadArgs{
+			Selector:   lso.LeaseColmFam,
+			Key:        startKey,      // continue from previous position
+			BufSize:    1024 * 1024,   // 1 MB
+			Consistent: true,
 		}
+
+		rrres, err := cbArgs.Store.RangeRead(rrargs)
+		if err != nil {
+    		if err.Error() == "Failed to lookup for key" {
+        		log.Info("No leases found in the DB.")
+        		break
+    		}
+    		log.Error("Failed to read from PumicDB: ", err)
+    		return
+		}
+
+		if rrres.ResultMap != nil {
+			//Result of the read
+			for key, value := range rrres.ResultMap {
+				//Decode the request structure sent by client.
+				var leaseInfo leaseLib.LeaseInfo
+				dec := gob.NewDecoder(bytes.NewBuffer(value))
+				decodeErr := dec.Decode(&leaseInfo.LeaseMetaInfo)
+				if decodeErr != nil {
+					log.Error("Failed to decode the read request : ", decodeErr)
+					return
+				}
+				kuuid, _ := uuid.FromString(key)
+				lso.LeaseMap[kuuid] = &leaseInfo
+				leaseInfo.ListElement = &list.Element{}
+				leaseInfo.ListElement.Value = &leaseInfo
+				lso.listOperation(&leaseInfo, PUSH, false)
+				// delete(rrres.ResultMap, key)
+			}
+	    }
+
+		// Check if more entries exist
+		if rrres.LastKey == "" {
+			break // fully scanned DB
+		}
+
+		// Continue from where buffer stopped
+		startKey = rrres.LastKey
 	}
 }
 
