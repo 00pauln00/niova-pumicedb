@@ -1648,6 +1648,19 @@ PmdbDeleteKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle,
                                             app_handle, comp_cb, key, key_len, NULL, 0);
 }
 
+void
+PmdbClearKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle)
+{
+    struct pmdb_apply_handle *pah = (struct pmdb_apply_handle *)pmdb_handle;
+
+    if (pmdb_handle_verify(app_id, pah))
+        return;
+
+    NIOVA_ASSERT(pah);
+
+    raft_net_sm_write_supplement_destroy(pah->pah_ws);
+}
+
 
 /**
  * PmdbExec - blocking API call used by a pumice-enabled application which
