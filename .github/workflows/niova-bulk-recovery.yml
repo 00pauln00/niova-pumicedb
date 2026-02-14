@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    timeout-minutes: 30
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -17,28 +17,47 @@ jobs:
       run: cp scripts/run-recipes.sh /home/runner/work/niovad/niovad/build_dir/ &&
            cp scripts/bulk_recovery_recipes.txt /home/runner/work/niovad/niovad/build_dir/
 
+    - name: Install SSH server
+      run: sudo apt-get update && sudo apt-get install -y openssh-server
+
     - name: Create ssh key
       run: >
            ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
 
-    - name: Add key to auth file
-      run: >
-           cat ~/.ssh/id_rsa.pub | tee -a ~/.ssh/authorized_keys
-
-    - name: Allow localhost authentication
-      run: >
-           echo "NoHostAuthenticationForLocalhost yes" > ~/.ssh/config
-
-    - name: Ensure the owner of the key is correct
+    - name: Configure authorized_keys
       run: |
-           chmod 600 ~/.ssh/authorized_keys
-           chmod 700 ~/.ssh
-           sudo chmod -c 0755 ~/
-           ls -la ~/.ssh
+        mkdir -p ~/.ssh
+        cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
+        chmod 700 ~/.ssh
+        chmod 600 ~/.ssh/authorized_keys
+        sudo chmod 755 ~
+
+    - name: Configure sshd for key authentication
+      run: |
+        sudo sed -i 's/^#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config || echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+        sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config || echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config
+        sudo service ssh restart
+
+    - name: Add localhost to known_hosts
+      run: |
+        ssh-keyscan -H localhost >> ~/.ssh/known_hosts
+        ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
 
     - name: Test SSH connection to localhost
       run: >
            ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
+
+    - name: Add SSH key permissions and restart service
+      run: |
+        cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
+        chmod 600 ~/.ssh/authorized_keys
+        chmod 700 ~/.ssh
+        sudo chmod 755 ~
+        sudo service ssh restart
+
+    # - name: deebugger for bulk recovery
+    #   uses: csexton/debugger-action@master
 
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
