@@ -1,1 +1,4 @@
 covid_golang_operation_all.yml
+atomicity_in_apply.yml
+covid_ryow_and_idempotency_test.yml
+covid_verify_ryow_and_failure_idempotency.yml
