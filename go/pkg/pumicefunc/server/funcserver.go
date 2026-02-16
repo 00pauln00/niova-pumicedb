@@ -98,6 +98,13 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 		}
 
 		return size
+	} else {
+		//Use wildcard function if exist
+		fn := fs.WritePrepFuncs["*"]
+		if fn == nil {
+			log.Error("Wildcard write function not found")
+			return -1
+		}
 	}
 
 	log.Trace("Write prep function not found, skipping write prep for ", r.Name)
