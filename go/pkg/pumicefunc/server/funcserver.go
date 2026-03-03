@@ -78,6 +78,23 @@ func copyResultToBuffer(r interface{}, buf unsafe.Pointer, bufsz int) int64 {
 	return size
 }
 
+// encodeFuncError writes a FuncError marker into the PMDB output buffer so
+// the real error message survives the PMDB layer instead of being lost as -1.
+func encodeFuncError(err error, buf unsafe.Pointer, bufsz int) int64 {
+	fe := funclib.FuncError{Msg: err.Error()}
+	var enc bytes.Buffer
+	if encErr := gob.NewEncoder(&enc).Encode(fe); encErr != nil {
+		log.Errorf("encodeFuncError: failed to encode FuncError: %v", encErr)
+		return -1
+	}
+	size, copyErr := pmsvr.PmdbCopyBytesToBuffer(enc.Bytes(), buf)
+	if copyErr != nil {
+		log.Errorf("encodeFuncError: failed to copy FuncError to buffer: %v", copyErr)
+		return -1
+	}
+	return size
+}
+
 func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 	r, err := decode(wpa.Payload)
 	if err != nil {
@@ -89,7 +106,9 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 		res, err := fn(r.Args, wpa)
 		if err != nil {
 			log.Errorf("Write prep function %s failed: %v", r.Name, err)
-			return -1
+			// Encode error as FuncError marker; omit DiscontinueWrite so Apply
+			// can route the real error to ReplyBuf without committing any changes.
+			return encodeFuncError(err, wpa.AppData, int(wpa.AppDataSize))
 		}
 		size := copyResultToBuffer(res, wpa.AppData, int(wpa.AppDataSize))
 		//Continue write if the function executed successfully
@@ -122,8 +141,8 @@ func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 	if fn, exists := fs.ApplyFuncs[r.Name]; exists {
 		res, err = fn(r.Args, apar)
 		if err != nil {
-			log.Error("Apply function %s failed: %v", r.Name, err)
-			return -1
+			log.Errorf("Apply function %s failed: %v", r.Name, err)
+			return encodeFuncError(err, apar.ReplyBuf, int(apar.ReplySize))
 		}
 		goto out
 
@@ -136,8 +155,8 @@ func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 		}
 		res, err = fn(apar)
 		if err != nil {
-			log.Error("Default apply function failed: %v", err)
-			return -1
+			log.Errorf("Default (wildcard) apply function failed: %v", err)
+			return encodeFuncError(err, apar.ReplyBuf, int(apar.ReplySize))
 		}
 	}
 
@@ -157,7 +176,7 @@ func (fs *FuncServer) Read(rda *pmsvr.PmdbCbArgs) int64 {
 		res, err := fn(rda, r.Args)
 		if err != nil {
 			log.Errorf("Read function %s failed: %v", r.Name, err)
-			return -1
+			return encodeFuncError(err, rda.ReplyBuf, int(rda.ReplySize))
 		}
 		size := copyResultToBuffer(res, rda.ReplyBuf, int(rda.ReplySize))
 		return size

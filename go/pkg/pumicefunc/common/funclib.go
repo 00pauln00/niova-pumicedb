@@ -29,3 +29,9 @@ type FuncIntrm struct {
 	Changes  []CommitChg
 	Response []byte
 }
+
+// FuncError is encoded into HTTP 200 response bodies when a registered function
+// errors; non-empty Msg identifies the error and carries the message.
+type FuncError struct {
+	Msg string
+}

@@ -28,8 +28,12 @@ func service_Request(request *http.Request) ([]byte, error) {
 	case 503:
 		//Service not found, returned for timeout
 		return nil, errors.New("Server timed out")
+	default:
+		// Non-200, non-503 responses discard the body silently (nil, nil).
+		// Proxy must use HTTP 200 + FuncError body to propagate errors.
+		log.Warnf("httpclient: received HTTP %d for %s %s — response body discarded", response.StatusCode, request.Method, request.URL)
+		return nil, nil
 	}
-	return nil, nil
 }
 
 func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) {
