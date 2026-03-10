@@ -548,7 +548,7 @@ func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
 		rrargs := storageiface.RangeReadArgs{
 			Selector:   lso.LeaseColmFam,
 			Key:        startKey,      // continue from previous position
-			BufSize:    1024 * 1024,   // 1 MB
+			BufSize:    64 * 1024,   // 64 KB
 			Consistent: true,
 		}
 
