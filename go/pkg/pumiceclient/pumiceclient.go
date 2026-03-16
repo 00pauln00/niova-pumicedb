@@ -10,6 +10,7 @@ import (
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	gopointer "github.com/mattn/go-pointer"
+	"github.com/prometheus/common/log"
 
 	"github.com/google/uuid"
 )
@@ -223,12 +224,14 @@ func (pco *PmdbClientObj) put(rncui string, writeSeqNo int64,
 		obj, GoToCSize_t(len), &pmdb_req_opt)
 
 	if rc != 0 {
+		log.Error("pmdb obj put x: ", rc)
 		return nil, pumiceerr.TranslatePumiceReqErrCode(int(rc))
 	}
 
 	//Await for the request response!
 	err := <-reqComplCh
 	if err != 0 {
+		log.Error("reqComplCh : ", err)
 		return nil, pumiceerr.TranslatePumiceReqErrCode(err)
 	}
 

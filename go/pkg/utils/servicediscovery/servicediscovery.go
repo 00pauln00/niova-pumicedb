@@ -1,16 +1,17 @@
 package servicediscovery
 
 import (
-	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
-	serfClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfclient"
-	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"math/rand"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"sync"
 	"time"
+
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+	compressionLib "github.com/00pauln00/niova-pumicedb/go/pkg/utils/compressor"
+	httpClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/httpclient"
+	serfClient "github.com/00pauln00/niova-pumicedb/go/pkg/utils/serfclient"
 
 	log "github.com/sirupsen/logrus"
 
@@ -75,7 +76,6 @@ func (handler *ServiceDiscoveryHandler) Request(payload []byte, suburl string, w
 	var toSend client.Member
 	var response []byte
 	var err error
-
 	for i := 0; i < handler.HTTPRetry; i++ {
 		var ok bool
 
@@ -286,7 +286,7 @@ func (handler *ServiceDiscoveryHandler) GetPMDBServerConfig() ([]byte, error) {
 	return json.MarshalIndent(PMDBServerConfigMap, " ", "")
 }
 
-//Returns raft leader's uuid
+// Returns raft leader's uuid
 func (handler *ServiceDiscoveryHandler) GetLeader() string {
 	agent, err := handler.pickServer("")
 	if err != nil {
@@ -295,7 +295,7 @@ func (handler *ServiceDiscoveryHandler) GetLeader() string {
 	return agent.Tags["Leader UUID"]
 }
 
-//Wait till connect
+// Wait till connect
 func (handler *ServiceDiscoveryHandler) TillReady(service string, serviceRetry int) error {
 	for !handler.ready {
 

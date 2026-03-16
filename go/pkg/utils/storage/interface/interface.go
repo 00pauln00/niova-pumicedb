@@ -23,3 +23,11 @@ type DataStore interface {
 	Write(key, value, selector string) error
 	Delete(key, selector string) error
 }
+
+type Iterator interface {
+	Valid() bool
+	Next()
+	Key() string
+	Value() []byte
+	Close()
+}
