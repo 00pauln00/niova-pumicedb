@@ -57,6 +57,10 @@ func (p *PumiceIterator) Value() []byte {
 	return C.GoBytes(unsafe.Pointer(v), C.int(vlen))
 }
 
+func (p *PumiceIterator) GetKV() (string, string) {
+	return p.Key(), string(p.Value())
+}
+
 func (p *PumiceIterator) Close() {
 
 	if p.Snapshot != nil {

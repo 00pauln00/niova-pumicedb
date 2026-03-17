@@ -55,7 +55,6 @@ type PmdbCbArgs struct {
 
 	// Storage interface
 	Store storageiface.DataStore
-	Iter  storageiface.Iterator
 
 	// Pumice server handler pointer
 	pumiceHandler unsafe.Pointer
