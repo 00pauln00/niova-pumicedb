@@ -4,13 +4,49 @@ import (
 	"C"
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	funclib "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/common"
 	pmsvr "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	log "github.com/sirupsen/logrus"
 )
+
+type FuncStat struct {
+	Serviced int64
+	InFlight int64
+}
+
+var (
+	FuncStats     = make(map[string]*FuncStat)
+	FuncStatsLock sync.RWMutex
+)
+
+func incInFlight(name string) {
+	FuncStatsLock.Lock()
+	stat, ok := FuncStats[name]
+	if !ok {
+		stat = &FuncStat{}
+		FuncStats[name] = stat
+	}
+	FuncStatsLock.Unlock()
+	atomic.AddInt64(&stat.InFlight, 1)
+}
+
+func decInFlightAndIncServiced(name string) {
+	FuncStatsLock.RLock()
+	stat, ok := FuncStats[name]
+	FuncStatsLock.RUnlock()
+	if ok {
+		atomic.AddInt64(&stat.InFlight, -1)
+		atomic.AddInt64(&stat.Serviced, 1)
+	}
+}
 
 // FuncServer is a struct that represents a function server.
 type FuncServer struct {
@@ -20,11 +56,36 @@ type FuncServer struct {
 }
 
 func NewFuncServer() *FuncServer {
-	return &FuncServer{
+	fs := &FuncServer{
 		WritePrepFuncs: make(map[string]func(args ...interface{}) (interface{}, error)),
 		ApplyFuncs:     make(map[string]func(args ...interface{}) (interface{}, error)),
 		ReadFuncs:      make(map[string]func(args ...interface{}) (interface{}, error)),
 	}
+
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/nums", func(w http.ResponseWriter, r *http.Request) {
+			FuncStatsLock.RLock()
+			defer FuncStatsLock.RUnlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(FuncStats); err != nil {
+				log.Errorf("Failed to encode func stats: %v", err)
+			}
+		})
+
+		listener, err := net.Listen("tcp", ":0")
+		if err != nil {
+			log.Errorf("Failed to start func stats server: %v", err)
+			return
+		}
+		log.Infof("Func stats HTTP server listening on %s", listener.Addr().String())
+		if err := http.Serve(listener, mux); err != nil {
+			log.Errorf("Func stats HTTP server error: %v", err)
+		}
+	}()
+
+	return fs
 }
 
 // RegisterWriteFunc registers a write function with the server.
@@ -86,7 +147,9 @@ func (fs *FuncServer) WritePrep(wpa *pmsvr.PmdbCbArgs) int64 {
 	}
 
 	if fn, exists := fs.WritePrepFuncs[r.Name]; exists {
+		incInFlight(r.Name)
 		res, err := fn(r.Args, wpa)
+		decInFlightAndIncServiced(r.Name)
 		if err != nil {
 			log.Errorf("Write prep function %s failed: %v", r.Name, err)
 			return -1
@@ -120,7 +183,9 @@ func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 
 	var res interface{}
 	if fn, exists := fs.ApplyFuncs[r.Name]; exists {
+		incInFlight(r.Name)
 		res, err = fn(r.Args, apar)
+		decInFlightAndIncServiced(r.Name)
 		if err != nil {
 			log.Error("Apply function %s failed: %v", r.Name, err)
 			return -1
@@ -134,7 +199,9 @@ func (fs *FuncServer) Apply(apar *pmsvr.PmdbCbArgs) int64 {
 			log.Error("Wildcard apply function not found")
 			return -1
 		}
+		incInFlight(r.Name)
 		res, err = fn(apar)
+		decInFlightAndIncServiced(r.Name)
 		if err != nil {
 			log.Error("Default apply function failed: %v", err)
 			return -1
@@ -154,7 +221,9 @@ func (fs *FuncServer) Read(rda *pmsvr.PmdbCbArgs) int64 {
 		return -1
 	}
 	if fn, exists := fs.ReadFuncs[r.Name]; exists {
+		incInFlight(r.Name)
 		res, err := fn(rda, r.Args)
+		decInFlightAndIncServiced(r.Name)
 		if err != nil {
 			log.Errorf("Read function %s failed: %v", r.Name, err)
 			return -1

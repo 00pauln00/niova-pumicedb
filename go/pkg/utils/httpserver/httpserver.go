@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"strconv"
 	"sync"
 	"time"
@@ -14,12 +15,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type FuncStat struct {
+	InFlight int64 `json:"in_flight"`
+	Serviced int64 `json:"serviced"`
+	Errored  int64 `json:"errored"`
+}
+
 type HTTPServerHandler struct {
 	//Exported
 	Addr                net.IP
 	Port                uint16
-	GetKVHandler       func([]byte, *[]byte) error
-	PutKVHandler       func(string, int64, []byte, *[]byte) error
+	GetKVHandler        func([]byte, *[]byte) error
+	PutKVHandler        func(string, int64, []byte, *[]byte) error
 	GetLeaseHandler     func([]byte, *[]byte) error
 	PutLeaseHandler     func(string, int64, []byte, *[]byte) error
 	GetFuncHandler      func(string, []byte, *[]byte, *http.Request) error
@@ -37,6 +44,9 @@ type HTTPServerHandler struct {
 	StatsRequired bool
 	Stat          HTTPServerStat
 	statLock      sync.Mutex
+	//For func stats
+	FuncStats     map[string]*FuncStat
+	funcStatsLock sync.Mutex
 }
 
 type HTTPServerStat struct {
@@ -83,6 +93,20 @@ func (handler *HTTPServerHandler) statHandler(writer http.ResponseWriter, reader
 		log.Error("(HTTP Server) Writing to http response writer failed :", err)
 	}
 	return
+}
+
+func (handler *HTTPServerHandler) numsHandler(writer http.ResponseWriter, reader *http.Request) {
+	handler.funcStatsLock.Lock()
+	stat, err := json.MarshalIndent(handler.FuncStats, "", " ")
+	handler.funcStatsLock.Unlock()
+	if err != nil {
+		log.Error("(HTTP Server) Writing to http response writer failed :", err)
+		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+	writer.Write(stat)
 }
 
 func (handler *HTTPServerHandler) updateStat(id int64, success bool, read bool) {
@@ -254,19 +278,46 @@ func (handler *HTTPServerHandler) funcHandler(writer http.ResponseWriter, reader
 	if err != nil {
 		wsn = 0
 	}
+
+	var funcErr error
+
+	if name != "" {
+		handler.funcStatsLock.Lock()
+		if handler.FuncStats == nil {
+			handler.FuncStats = make(map[string]*FuncStat)
+		}
+		stat, ok := handler.FuncStats[name]
+		if !ok {
+			stat = &FuncStat{}
+			handler.FuncStats[name] = stat
+		}
+		stat.InFlight++
+		handler.funcStatsLock.Unlock()
+
+		defer func() {
+			handler.funcStatsLock.Lock()
+			stat.InFlight--
+			if funcErr != nil {
+				stat.Errored++
+			} else {
+				stat.Serviced++
+			}
+			handler.funcStatsLock.Unlock()
+		}()
+	}
+
 	var response []byte
 
 	switch reader.Method {
 	case "GET":
-		err = handler.GetFuncHandler(name, body, &response, reader)
+		funcErr = handler.GetFuncHandler(name, body, &response, reader)
 	case "PUT":
-		err = handler.PutFuncHandler(name, rncui, wsn, body, &response, reader)
+		funcErr = handler.PutFuncHandler(name, rncui, wsn, body, &response, reader)
 	}
-	if err != nil {
-		log.Error("Error in FuncHandler: ", err)
-		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-		return
+	if funcErr != nil {
+		log.Error("Error in FuncHandler: ", name, " ", funcErr)
 	}
+	log.Info("CPReq done")
 	if response != nil {
 		// Write the response back to the client
 		writer.Header().Set("Content-Type", "application/json")
@@ -278,6 +329,7 @@ func (handler *HTTPServerHandler) funcHandler(writer http.ResponseWriter, reader
 			return
 		}
 	} else {
+		err = fmt.Errorf("no response from function")
 		http.Error(writer, "No response from function", http.StatusNotFound)
 	}
 }
@@ -288,6 +340,8 @@ func (handler *HTTPServerHandler) ServeHTTP(writer http.ResponseWriter, reader *
 		handler.configHandler(writer, reader)
 	} else if (reader.URL.Path == "/stat") && (handler.StatsRequired) {
 		handler.statHandler(writer, reader)
+	} else if reader.URL.Path == "/nums" {
+		handler.numsHandler(writer, reader)
 	} else if reader.URL.Path == "/check" {
 		writer.Write([]byte("HTTP server in operation"))
 	} else if reader.URL.Path == "/func" {
@@ -340,17 +394,22 @@ func (handler *HTTPServerHandler) Start_HTTPServer() error {
 	handler.connectionLimiter = make(chan int, handler.HTTPConnectionLimit)
 	handler.HTTPServer = http.Server{}
 	handler.HTTPServer.Addr = handler.Addr.String() + ":" + strconv.Itoa(int(handler.Port))
-
 	//Update the timeout using little's fourmula
 	handler.HTTPServer.Handler = http.TimeoutHandler(handler, 150*time.Second, "Server Timeout")
 	handler.Stat.StatusMap = make(map[int64]*RequestStatus)
+	handler.FuncStats = make(map[string]*FuncStat)
 
 	//Start listener
 	listener, err := handler.Start_HTTPListener()
 	if err != nil {
 		return err
 	}
+	log.Info("HTTP listen on ", handler.HTTPServer.Addr)
+
 	//Start server
+	go func() {
+		http.ListenAndServe("localhost:2000", nil)
+	}()
 	err = handler.HTTPServer.Serve(listener)
 	//err := handler.HTTPServer.ListenAndServe()
 	return err
