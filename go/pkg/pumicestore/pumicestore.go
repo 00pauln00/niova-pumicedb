@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceIter"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 	log "github.com/sirupsen/logrus"
@@ -128,6 +129,10 @@ func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.
 	}
 
 	return res, nil
+}
+
+func (s *PumiceStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageiface.Iterator, error) {
+	return pumiceiter.NewRangeIterator(args)
 }
 
 // Write writes a key-value pair.
@@ -273,26 +278,6 @@ func seekTo(key string, key_len int64, itr *C.rocksdb_iterator_t) {
 		FreeCMem(cKey)
 	}
 }
-
-
-// ------------------------------------------------------------
-// Helper Functions
-// ------------------------------------------------------------
-
-// func seekTo(key string, keyLen int64, itr *C.rocksdb_iterator_t) {
-// 	cKey := C.CString(key)
-// 	defer C.free(unsafe.Pointer(cKey))
-
-// 	C.rocksdb_iter_seek(itr, cKey, C.size_t(keyLen))
-// }
-
-// func GoToCString(s string) *C.char {
-// 	return C.CString(s)
-// }
-
-// func FreeCMem(ptr *C.char) {
-// 	C.free(unsafe.Pointer(ptr))
-// }
 
 // Ensure PumiceStore implements the DataStore interface.
 var _ storageiface.DataStore = &PumiceStore{}
