@@ -1,6 +1,11 @@
 package memstore
 
-import "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
+import (
+	"fmt"
+	"strings"
+
+	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
+)
 
 // MemStore is an in-memory key-value store that implements the DataStore interface.
 type MemStore struct {
@@ -18,7 +23,7 @@ func NewMemStore() *MemStore {
 func (s *MemStore) Read(key, selector string) ([]byte, error) {
 	value, ok := s.data[string(key)]
 	if !ok {
-		return nil, nil // Or an error indicating not found
+		return nil, fmt.Errorf("key %s not found", key) // Or an error indicating not found
 	}
 	return []byte(value), nil
 }
@@ -26,10 +31,21 @@ func (s *MemStore) Read(key, selector string) ([]byte, error) {
 // RangeRead reads a range of key-value pairs.
 // For an in-memory map, this is a simplified implementation.
 func (s *MemStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.RangeReadResult, error) {
-	//Do prefix matching based lookup
 
-	var result storageiface.RangeReadResult
-	return &result, nil
+	result := &storageiface.RangeReadResult{
+		ResultMap: make(map[string][]byte),
+	}
+
+	for k, v := range s.data {
+		if strings.HasPrefix(k, args.Prefix) {
+			result.ResultMap[k] = []byte(v)
+		}
+	}
+
+	result.SeqNum = args.SeqNum
+	result.LastKey = ""
+
+	return result, nil
 }
 
 // Write writes a key-value pair.
