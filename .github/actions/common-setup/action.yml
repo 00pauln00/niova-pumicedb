@@ -101,7 +101,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       # ref: 
+       ref: fix/bulk-recovery-recipes-1
        path: ./holon
 
     - name: Copy holon repo
