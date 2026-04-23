@@ -7,6 +7,10 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+#include <time.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <rocksdb/c.h>
 
 #include "niova/niova_backtrace.h"
@@ -28,6 +32,9 @@ static bool coalescedWrites = false;
 const char *raft_uuid_str;
 const char *my_uuid_str;
 
+#define KEY_PREFIX "key"
+#define MAX_KEY_INDEX 100000000000ULL
+
 #define PMDTS_ENTRY_KEY_LEN sizeof(struct raft_net_client_user_key_v0)
 #define PMDTS_RNCUI_2_KEY(rncui) (const char *)&(rncui)->rncui_key.v0
 
@@ -44,6 +51,137 @@ pmdbst_get_cfh(void)
     NIOVA_ASSERT(pmdbts_cfh);
 
     return pmdbts_cfh;
+}
+
+static int
+pmdbts_handle_logical_command(const struct raft_test_data_block *rtdb,
+                              const struct raft_net_client_user_id *app_id,
+                              void *pmdb_handle)
+{
+    char state[256] __attribute__((aligned(8)));
+    struct random_data buf;
+    int32_t rand_val;
+
+    memset(state, 0, sizeof(state));
+    memset(&buf, 0, sizeof(buf));
+
+    if (initstate_r(rtdb->rtdb_random_seed, state, sizeof(state),
+                    &buf) != 0) {
+        SIMPLE_LOG_MSG(LL_ERROR, "Failed to initialize random state");
+        return -EINVAL;
+    }
+
+    random_r(&buf, &rand_val);
+    uint64_t validation_rand1 = ((uint64_t)(uint32_t)rand_val) << 32;
+    random_r(&buf, &rand_val);
+    validation_rand1 |= (uint32_t)rand_val;
+    NIOVA_ASSERT(validation_rand1 == rtdb->rtdb_validation_rand1);
+
+    random_r(&buf, &rand_val);
+    uint64_t validation_rand2 = ((uint64_t)(uint32_t)rand_val) << 32;
+    random_r(&buf, &rand_val);
+    validation_rand2 |= (uint32_t)rand_val;
+    NIOVA_ASSERT(validation_rand2 == rtdb->rtdb_validation_rand2);
+
+    uint64_t total_count = 1000 - 4;
+    uint64_t start_index = (rtdb->rtdb_validation_rand1 %
+                            (MAX_KEY_INDEX - total_count));
+    uint64_t end_index = start_index + total_count;
+    uint64_t increment_value = (rtdb->rtdb_validation_rand2 % 1000) + 1;
+
+    rocksdb_readoptions_t *read_opts = rocksdb_readoptions_create();
+
+    for (uint64_t i = start_index; i <= end_index; i++) {
+        char key_name[32];
+        uint64_t current_value = 0;
+        uint64_t new_value = 0;
+        size_t value_len = 0;
+
+        snprintf(key_name, sizeof(key_name), "%s%lu", KEY_PREFIX, i);
+
+        char *err = NULL;
+        char *get_value = rocksdb_get_cf(PmdbGetRocksDB(), read_opts,
+                                          pmdbst_get_cfh(),
+                                          key_name, strlen(key_name),
+                                          &value_len, &err);
+
+        if (get_value && !err && value_len == sizeof(uint64_t)) {
+            current_value = *(uint64_t*)get_value;
+            free(get_value);
+        } else if (err) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to read key %s: %s",
+                           key_name, err);
+            continue;
+        } else {
+            current_value = 0;
+        }
+
+        if (current_value > UINT64_MAX - increment_value) {
+            new_value = UINT64_MAX;
+        } else {
+            new_value = current_value + increment_value;
+        }
+
+        int rc = PmdbWriteKV(app_id, pmdb_handle, key_name,
+                             strlen(key_name),
+                             (const char*)&new_value, sizeof(new_value),
+                             NULL, (void *)pmdbst_get_cfh());
+
+        if (rc) {
+            SIMPLE_LOG_MSG(LL_ERROR, "Failed to write key %s: rc=%d",
+                           key_name, rc);
+        }
+    }
+
+    rocksdb_readoptions_destroy(read_opts);
+
+    return 0;
+}
+
+static pumicedb_write_prep_ctx_ssize_t
+pmdbts_write_prep(struct pumicedb_cb_cargs *args)
+{
+    const void *input_buf = args->pcb_req_buf;
+    size_t input_bufsz = args->pcb_req_bufsz;
+    uint64_t version = raft_net_get_apply_handler_version();
+
+    if (version == 2) {
+        if (input_bufsz < sizeof(struct raft_test_data_block)) {
+            return -EINVAL;
+        }
+
+        uint32_t random_seed = (uint32_t)rand();
+        char state[256] __attribute__((aligned(8)));
+        struct random_data buf;
+        int32_t rand_val;
+
+        memset(state, 0, sizeof(state));
+        memset(&buf, 0, sizeof(buf));
+
+        if (initstate_r(random_seed, state, sizeof(state), &buf) != 0) {
+            SIMPLE_LOG_MSG(LL_ERROR,
+                           "Failed to initialize random state");
+            return -EINVAL;
+        }
+
+        random_r(&buf, &rand_val);
+        uint64_t validation_rand1 = ((uint64_t)(uint32_t)rand_val) << 32;
+        random_r(&buf, &rand_val);
+        validation_rand1 |= (uint32_t)rand_val;
+
+        random_r(&buf, &rand_val);
+        uint64_t validation_rand2 = ((uint64_t)(uint32_t)rand_val) << 32;
+        random_r(&buf, &rand_val);
+        validation_rand2 |= (uint32_t)rand_val;
+
+        struct raft_test_data_block *input_rtdb =
+            (struct raft_test_data_block *)input_buf;
+        input_rtdb->rtdb_random_seed = random_seed;
+        input_rtdb->rtdb_validation_rand1 = validation_rand1;
+        input_rtdb->rtdb_validation_rand2 = validation_rand2;
+    }
+
+    return 0;
 }
 
 #if 0
@@ -219,6 +357,78 @@ pmdbts_sum_incoming_rtv(const struct raft_test_data_block *rtdb_src,
 }
 
 static pumicedb_apply_ctx_ssize_t
+apply_handler_v1(struct pumicedb_cb_cargs *args)
+{
+    const struct raft_net_client_user_id *app_id = args->pcb_userid;
+    void *pmdb_handle = args->pcb_pmdb_handler;
+
+    const char *counter_key = "counter";
+    uint64_t counter_value = 0;
+    size_t value_len = 0;
+
+    rocksdb_readoptions_t *read_opts = rocksdb_readoptions_create();
+    if (!read_opts) {
+        return -ENOMEM;
+    }
+
+    char *err = NULL;
+    char *get_value = rocksdb_get_cf(PmdbGetRocksDB(), read_opts,
+                                      pmdbst_get_cfh(),
+                                      counter_key, strlen(counter_key),
+                                      &value_len, &err);
+
+    if (get_value && !err && value_len == sizeof(uint64_t)) {
+        counter_value = *(uint64_t*)get_value;
+        free(get_value);
+    } else if (err) {
+        SIMPLE_LOG_MSG(LL_ERROR, "Failed to read counter key: %s", err);
+        rocksdb_readoptions_destroy(read_opts);
+        return -EINVAL;
+    } else {
+        counter_value = 0;
+    }
+
+    rocksdb_readoptions_destroy(read_opts);
+
+    counter_value++;
+
+    int rc = PmdbWriteKV(app_id, pmdb_handle, counter_key,
+                         strlen(counter_key),
+                         (const char*)&counter_value, sizeof(counter_value),
+                         NULL, (void *)pmdbst_get_cfh());
+
+    if (rc) {
+        SIMPLE_LOG_MSG(LL_ERROR, "Failed to write counter key: rc=%d", rc);
+        return rc;
+    }
+
+    return 0;
+}
+
+static pumicedb_apply_ctx_ssize_t
+apply_handler_v2(struct pumicedb_cb_cargs *args)
+{
+    const struct raft_net_client_user_id *app_id = args->pcb_userid;
+    const void *input_buf = args->pcb_req_buf;
+    size_t input_bufsz = args->pcb_req_bufsz;
+    void *pmdb_handle = args->pcb_pmdb_handler;
+
+    if (input_bufsz < sizeof(struct raft_test_data_block)) {
+        return -EINVAL;
+    }
+
+    const struct raft_test_data_block *rtdb =
+        (const struct raft_test_data_block *)input_buf;
+
+    int rc = pmdbts_handle_logical_command(rtdb, app_id, pmdb_handle);
+    if (rc) {
+        return rc;
+    }
+
+    return 0;
+}
+
+static pumicedb_apply_ctx_ssize_t
 pmdbts_apply(struct pumicedb_cb_cargs *args)
 {
 //    NIOVA_ASSERT(!pmdbst_init_rocksdb());
@@ -227,13 +437,35 @@ pmdbts_apply(struct pumicedb_cb_cargs *args)
     const void *input_buf = args->pcb_req_buf;
     size_t input_bufsz = args->pcb_req_bufsz;
     void *pmdb_handle = args->pcb_pmdb_handler;
+    uint64_t version = args->pcb_apply_handler_version;
+
+    int rc = 0;
+    switch (version) {
+    case 1:
+        rc = apply_handler_v1(args);
+        break;
+    case 2:
+        rc = apply_handler_v2(args);
+        break;
+    default:
+        SIMPLE_LOG_MSG(LL_WARN, "Unknown handler version %lu", version);
+        break;
+    }
+
+    if (rc) {
+        return rc;
+    }
+
+    if (input_bufsz < sizeof(struct raft_test_data_block)) {
+        return -EINVAL;
+    }
 
     const struct raft_test_data_block *rtdb =
         (const struct raft_test_data_block *)input_buf;
 
     struct raft_test_values stored_rtv;
-    int rc = pmdbts_apply_lookup_and_check(app_id, input_buf, input_bufsz,
-                                           &stored_rtv);
+    rc = pmdbts_apply_lookup_and_check(app_id, input_buf, input_bufsz,
+                                       &stored_rtv);
     if (rc)
         return rc;
 
@@ -358,8 +590,10 @@ main(int argc, char **argv)
 {
     pmdbts_getopt(argc, argv);
 
+    srand(time(NULL));
+
     struct PmdbAPI api = {
-        .pmdb_write_prep   = NULL,
+        .pmdb_write_prep   = pmdbts_write_prep,
         .pmdb_init         = NULL,
         .pmdb_apply        = pmdbts_apply,
         .pmdb_read         = pmdbts_read,

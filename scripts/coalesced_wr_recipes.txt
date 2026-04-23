@@ -1,2 +1,4 @@
 coalesced_writes_with_single_client.yml
 pmdb_coalesced_wr_discard_old_leader_uncommitted_writes.yml
+pmdb_ryow_operation_for_coalesced_writes.yml
+basic_deterministic_database_application.yml
