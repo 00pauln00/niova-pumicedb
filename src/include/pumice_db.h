@@ -170,6 +170,17 @@ PmdbDeleteKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle,
             void *app_handle);
 
 /**
+ * PmdbClearKV - to be called by the pumice-enabled application in 'apply'
+ *    context only.  This call is used by the application to clear staged KVs
+ *    from the rocksDB writebatch.
+ * @app_id:  identifier of the application instance
+ * @pmdb_handle:  the handle which was provided from pumice_db to the apply
+ *    callback.
+ */
+void
+PmdbClearKV(const struct raft_net_client_user_id *app_id, void *pmdb_handle);
+
+/**
  * PmdbExec - blocking API call used by a pumice-enabled application which
  *    starts the underlying raft process and waits for incoming requests.
  * @raft_uuid_str:  UUID of raft
