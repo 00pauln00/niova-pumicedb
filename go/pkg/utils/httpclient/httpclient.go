@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -20,16 +21,35 @@ func service_Request(request *http.Request) ([]byte, error) {
 		return nil, err
 	}
 
-	switch response.StatusCode {
-	case 200:
-		//Serviced
-		defer response.Body.Close()
-		return ioutil.ReadAll(response.Body)
-	case 503:
-		//Service not found, returned for timeout
-		return nil, errors.New("Server timed out")
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
 	}
-	return nil, nil
+
+	switch {
+	case response.StatusCode >= 200 && response.StatusCode < 300:
+		// Success responses
+		return body, nil
+
+	case response.StatusCode == 408:
+		return nil, errors.New("request timeout")
+
+	case response.StatusCode == 503:
+		return nil, errors.New("service unavailable")
+
+	case response.StatusCode >= 400 && response.StatusCode < 500:
+		// return nil, fmt.Errorf("client error: %d - %s", response.StatusCode, string(body))
+		// ignore client errors, as the serf sometimes requests to invalid ports, need to fix this!
+		return nil, nil
+
+	case response.StatusCode >= 500:
+		return nil, fmt.Errorf("server error: %d - %s", response.StatusCode, string(body))
+
+	default:
+		return nil, fmt.Errorf("unexpected status code: %d - %s", response.StatusCode, string(body))
+	}
 }
 
 func HTTP_Request(requestBody []byte, address string, put bool) ([]byte, error) {
