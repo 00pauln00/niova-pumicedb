@@ -56,8 +56,6 @@ runs:
         cd modules/niova-raft
         git submodule init
         git submodule update
-        git fetch origin
-        git checkout main
       shell: bash
 
 # niova-core submodule init
