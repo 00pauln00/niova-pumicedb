@@ -21,6 +21,7 @@ var ttlDefault = 25
 var gcTimeout = 35
 
 const MAX_SINGLE_GC_REQ = 100
+const MAX_BUF_SIZE = 4 * 1024 * 1024 // 4MB
 
 var LEASE_COLUMN_FAMILY = "NIOVA_LEASE_CF"
 
@@ -547,9 +548,9 @@ func (lso *LeaseServerObject) peerBootup(cbArgs *PumiceDBServer.PmdbCbArgs) {
 	for {
 		rrargs := storageiface.RangeReadArgs{
 			Selector:   lso.LeaseColmFam,
-			Key:        startKey,      // continue from previous position
-			BufSize:    64 * 1024,   // 64 KB
-			Consistent: true,
+			Key:        startKey,        // continue from previous position
+			BufSize:    MAX_BUF_SIZE,
+			Consistent: false,
 		}
 
 		rrres, err := cbArgs.Store.RangeRead(rrargs)
