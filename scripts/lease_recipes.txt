@@ -1,3 +1,4 @@
+lease_rebuild_on_peer_reboot.yml
 lease_get_lease_on_already_expired_lease.yml
 lease_multiple_clients_races_to_get_the_lease_for_same_resource_simultaneously.yml
 lease_perform_lookup_operation_on_non_existing_lease.yml
