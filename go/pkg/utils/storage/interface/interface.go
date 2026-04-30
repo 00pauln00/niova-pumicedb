@@ -20,6 +20,16 @@ type RangeReadResult struct {
 type DataStore interface {
 	Read(key, selector string) ([]byte, error)
 	RangeRead(args RangeReadArgs) (*RangeReadResult, error)
+	NewRangeIterator(args RangeReadArgs) (Iterator, error)
 	Write(key, value, selector string) error
 	Delete(key, selector string) error
+}
+
+type Iterator interface {
+	Valid() bool
+	Next()
+	Key() string
+	Value() []byte
+	GetKV() (string, string)
+	Close()
 }
