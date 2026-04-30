@@ -48,14 +48,11 @@ jobs:
       run: >
            ssh -vvv -i ~/.ssh/id_rsa -o BatchMode=yes -o StrictHostKeyChecking=no $(whoami)@localhost
 
-    - name: Add SSH key permissions and restart service
+    - name: Add SSH key permissions
       run: |
         cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
         chmod 600 ~/.ssh/authorized_keys
         chmod 700 ~/.ssh
-
-    # sudo chmod 755 ~
-    # sudo service ssh restart
 
     - name:  run recipes
       run: cd /home/runner/work/niovad/niovad/build_dir/holon/ &&
