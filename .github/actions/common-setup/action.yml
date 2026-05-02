@@ -99,7 +99,7 @@ runs:
       uses: actions/checkout@v4
       with:
        repository: 00pauln00/holon
-       # ref:
+       ref: recipe/lease_rebuild
        path: ./holon
 
     - name: Copy holon repo
