@@ -121,5 +121,25 @@ func (s *MemStore) Delete(key, selector string) error {
 	return nil
 }
 
+// NewRangeIterator creates a new iterator for the MemStore.
+func (s *MemStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageiface.Iterator, error) {
+	return &MemIterator{
+		data: s.data,
+		// Simplified implementation, not actually doing range/prefix yet for MemStore
+	}, nil
+}
+
+type MemIterator struct {
+	data map[string]string
+}
+
+func (i *MemIterator) Valid() bool            { return false }
+func (i *MemIterator) Next()                  {}
+func (i *MemIterator) Key() string            { return "" }
+func (i *MemIterator) Value() []byte          { return nil }
+func (i *MemIterator) GetKV() (string, string) { return "", "" }
+func (i *MemIterator) SeqNum() uint64         { return 0 }
+func (i *MemIterator) Close()                 {}
+
 // Ensure MemStore implements the DataStore interface.
 var _ storageiface.DataStore = &MemStore{}

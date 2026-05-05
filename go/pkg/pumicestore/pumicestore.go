@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceIter"
 	"github.com/00pauln00/niova-pumicedb/go/pkg/pumiceerr"
 	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
 	log "github.com/sirupsen/logrus"
@@ -128,6 +129,10 @@ func (s *PumiceStore) RangeRead(args storageiface.RangeReadArgs) (*storageiface.
 	}
 
 	return res, nil
+}
+
+func (s *PumiceStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageiface.Iterator, error) {
+	return pumiceiter.NewRangeIterator(args)
 }
 
 // Write writes a key-value pair.
