@@ -8,6 +8,7 @@ package pumiceiter
 import "C"
 
 import (
+	"strings"
 	"unsafe"
 
 	storageiface "github.com/00pauln00/niova-pumicedb/go/pkg/utils/storage/interface"
@@ -26,9 +27,11 @@ type CRocksdbReadoptionsT = C.rocksdb_readoptions_t
 // ------------------------------------------------------------
 
 type PumiceIterator struct {
-	Itr      *CRocksdbIteratorT
-	Ropts    *CRocksdbReadoptionsT
-	Snapshot *CRocksdbSnapshotT
+	Itr       *CRocksdbIteratorT
+	Ropts     *CRocksdbReadoptionsT
+	Snapshot  *CRocksdbSnapshotT
+	SeqNumVal uint64
+	Prefix    string
 }
 
 // ------------------------------------------------------------
@@ -36,7 +39,16 @@ type PumiceIterator struct {
 // ------------------------------------------------------------
 
 func (p *PumiceIterator) Valid() bool {
-	return C.rocksdb_iter_valid(p.Itr) != 0
+	valid := C.rocksdb_iter_valid(p.Itr) != 0
+	if !valid {
+		return false
+	}
+	if p.Prefix != "" {
+		if !strings.HasPrefix(p.Key(), p.Prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *PumiceIterator) Next() {
@@ -61,6 +73,10 @@ func (p *PumiceIterator) GetKV() (string, string) {
 	return p.Key(), string(p.Value())
 }
 
+func (p *PumiceIterator) SeqNum() uint64 {
+	return p.SeqNumVal
+}
+
 func (p *PumiceIterator) Close() {
 
 	if p.Snapshot != nil {
@@ -68,7 +84,11 @@ func (p *PumiceIterator) Close() {
 	}
 
 	if p.Ropts != nil {
-		C.rocksdb_readoptions_destroy(p.Ropts)
+		if p.SeqNumVal > 0 && p.Snapshot == nil {
+			C.PmdbPutRoptionsWithSnapshot(C.ulong(p.SeqNumVal))
+		} else {
+			C.rocksdb_readoptions_destroy(p.Ropts)
+		}
 	}
 
 	if p.Itr != nil {
@@ -79,12 +99,15 @@ func (p *PumiceIterator) Close() {
 func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) {
 
 	var snapshot *C.rocksdb_snapshot_t
-
-	ropts := C.rocksdb_readoptions_create()
+	var ropts *C.rocksdb_readoptions_t
+	var retSeqNum C.ulong
+	var seqNum = args.SeqNum
 
 	if args.Consistent {
-		snapshot = C.rocksdb_create_snapshot(C.PmdbGetRocksDB())
-		C.rocksdb_readoptions_set_snapshot(ropts, snapshot)
+		ropts = C.PmdbGetRoptionsWithSnapshot(C.ulong(seqNum), &retSeqNum)
+		seqNum = uint64(retSeqNum)
+	} else {
+		ropts = C.rocksdb_readoptions_create()
 	}
 
 	cf := GoToCString(args.Selector)
@@ -101,9 +124,11 @@ func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) 
 	FreeCMem(cf)
 
 	return &PumiceIterator{
-		Itr:      itr,
-		Ropts:    ropts,
-		Snapshot: snapshot,
+		Itr:       itr,
+		Ropts:     ropts,
+		Snapshot:  snapshot,
+		SeqNumVal: seqNum,
+		Prefix:    args.Prefix,
 	}, nil
 }
 

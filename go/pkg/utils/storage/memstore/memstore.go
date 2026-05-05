@@ -77,6 +77,7 @@ func (i *MemIterator) Next()                  {}
 func (i *MemIterator) Key() string            { return "" }
 func (i *MemIterator) Value() []byte          { return nil }
 func (i *MemIterator) GetKV() (string, string) { return "", "" }
+func (i *MemIterator) SeqNum() uint64         { return 0 }
 func (i *MemIterator) Close()                 {}
 
 // Ensure MemStore implements the DataStore interface.
