@@ -31,6 +31,6 @@ type Iterator interface {
 	Key() string
 	Value() []byte
 	GetKV() (string, string)
-	SeqNum() uint64
+	GetSeqNum() uint64
 	Close()
 }

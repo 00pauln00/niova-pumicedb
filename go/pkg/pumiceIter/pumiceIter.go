@@ -18,20 +18,20 @@ import (
 // Exported C type aliases (for cross-package unsafe.Pointer casts)
 // ------------------------------------------------------------
 
-type CRocksdbSnapshotT = C.rocksdb_snapshot_t
-type CRocksdbIteratorT = C.rocksdb_iterator_t
-type CRocksdbReadoptionsT = C.rocksdb_readoptions_t
+type cRocksdbSnapshotT = C.rocksdb_snapshot_t
+type cRocksdbIteratorT = C.rocksdb_iterator_t
+type cRocksdbReadoptionsT = C.rocksdb_readoptions_t
 
 // ------------------------------------------------------------
 // Iterator Implementation
 // ------------------------------------------------------------
 
 type PumiceIterator struct {
-	Itr       *CRocksdbIteratorT
-	Ropts     *CRocksdbReadoptionsT
-	Snapshot  *CRocksdbSnapshotT
-	SeqNumVal uint64
-	Prefix    string
+	itr       *cRocksdbIteratorT
+	ropts     *cRocksdbReadoptionsT
+	snapshot  *cRocksdbSnapshotT
+	seqNum 	  uint64
+	prefix    string
 }
 
 // ------------------------------------------------------------
@@ -39,12 +39,12 @@ type PumiceIterator struct {
 // ------------------------------------------------------------
 
 func (p *PumiceIterator) Valid() bool {
-	valid := C.rocksdb_iter_valid(p.Itr) != 0
+	valid := C.rocksdb_iter_valid(p.itr) != 0
 	if !valid {
 		return false
 	}
-	if p.Prefix != "" {
-		if !strings.HasPrefix(p.Key(), p.Prefix) {
+	if p.prefix != "" {
+		if !strings.HasPrefix(p.Key(), p.prefix) {
 			return false
 		}
 	}
@@ -52,19 +52,19 @@ func (p *PumiceIterator) Valid() bool {
 }
 
 func (p *PumiceIterator) Next() {
-	C.rocksdb_iter_next(p.Itr)
+	C.rocksdb_iter_next(p.itr)
 }
 
 func (p *PumiceIterator) Key() string {
 	var klen C.size_t
-	k := C.rocksdb_iter_key(p.Itr, &klen)
+	k := C.rocksdb_iter_key(p.itr, &klen)
 
 	return C.GoStringN((*C.char)(k), C.int(klen))
 }
 
 func (p *PumiceIterator) Value() []byte {
 	var vlen C.size_t
-	v := C.rocksdb_iter_value(p.Itr, &vlen)
+	v := C.rocksdb_iter_value(p.itr, &vlen)
 
 	return C.GoBytes(unsafe.Pointer(v), C.int(vlen))
 }
@@ -73,26 +73,26 @@ func (p *PumiceIterator) GetKV() (string, string) {
 	return p.Key(), string(p.Value())
 }
 
-func (p *PumiceIterator) SeqNum() uint64 {
-	return p.SeqNumVal
+func (p *PumiceIterator) GetSeqNum() uint64 {
+	return p.seqNum
 }
 
 func (p *PumiceIterator) Close() {
 
-	if p.Snapshot != nil {
-		C.rocksdb_release_snapshot(C.PmdbGetRocksDB(), p.Snapshot)
+	if p.snapshot != nil {
+		C.rocksdb_release_snapshot(C.PmdbGetRocksDB(), p.snapshot)
 	}
 
-	if p.Ropts != nil {
-		if p.SeqNumVal > 0 && p.Snapshot == nil {
-			C.PmdbPutRoptionsWithSnapshot(C.ulong(p.SeqNumVal))
+	if p.ropts != nil {
+		if p.seqNum > 0 && p.snapshot == nil {
+			C.PmdbPutRoptionsWithSnapshot(C.ulong(p.seqNum))
 		} else {
-			C.rocksdb_readoptions_destroy(p.Ropts)
+			C.rocksdb_readoptions_destroy(p.ropts)
 		}
 	}
 
-	if p.Itr != nil {
-		C.rocksdb_iter_destroy(p.Itr)
+	if p.itr != nil {
+		C.rocksdb_iter_destroy(p.itr)
 	}
 }
 
@@ -110,7 +110,7 @@ func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) 
 		ropts = C.rocksdb_readoptions_create()
 	}
 
-	cf := GoToCString(args.Selector)
+	cf := goToCString(args.Selector)
 	cfHandle := C.PmdbCfHandleLookup(cf)
 
 	itr := C.rocksdb_create_iterator_cf(
@@ -121,14 +121,14 @@ func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) 
 
 	seekTo(args.Key, int64(len(args.Key)), itr)
 
-	FreeCMem(cf)
+	freeCMem(cf)
 
 	return &PumiceIterator{
-		Itr:       itr,
-		Ropts:     ropts,
-		Snapshot:  snapshot,
-		SeqNumVal: seqNum,
-		Prefix:    args.Prefix,
+		itr:       itr,
+		ropts:     ropts,
+		snapshot:  snapshot,
+		seqNum: seqNum,
+		prefix:    args.Prefix,
 	}, nil
 }
 
@@ -139,10 +139,10 @@ func seekTo(key string, keyLen int64, itr *C.rocksdb_iterator_t) {
 	C.rocksdb_iter_seek(itr, cKey, C.size_t(keyLen))
 }
 
-func GoToCString(s string) *C.char {
+func goToCString(s string) *C.char {
 	return C.CString(s)
 }
 
-func FreeCMem(ptr *C.char) {
+func freeCMem(ptr *C.char) {
 	C.free(unsafe.Pointer(ptr))
 }
