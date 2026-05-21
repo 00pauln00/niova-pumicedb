@@ -122,24 +122,84 @@ func (s *MemStore) Delete(key, selector string) error {
 }
 
 // NewRangeIterator creates a new iterator for the MemStore.
+// It collects all keys from the map, sorts them lexicographically,
+// and seeks to args.Key — mirroring the PumiceIterator (RocksDB) behavior.
 func (s *MemStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageiface.Iterator, error) {
+	// Collect all keys from the map (full snapshot).
+	allKeys := make([]string, 0, len(s.data))
+	for k := range s.data {
+		allKeys = append(allKeys, k)
+	}
+	sort.Strings(allKeys)
+
+	// Seek: find the first key >= args.Key using binary search.
+	startPos := sort.SearchStrings(allKeys, args.Key)
+
 	return &MemIterator{
-		data: s.data,
-		// Simplified implementation, not actually doing range/prefix yet for MemStore
+		keys:   allKeys,
+		data:   s.data,
+		pos:    startPos,
+		prefix: args.Prefix,
+		seqNum: args.SeqNum,
 	}, nil
 }
 
+// ------------------------------------------------------------
+// MemIterator — sorted-key cursor iterator over MemStore
+// ------------------------------------------------------------
+
+// MemIterator provides a sorted, prefix-filtered, seek-capable iterator
+// over a MemStore's data, matching the PumiceIterator interface.
 type MemIterator struct {
-	data map[string]string
+	keys   []string          // lexicographically sorted key snapshot
+	data   map[string]string // reference to MemStore data for value lookups
+	pos    int               // current cursor position in keys
+	prefix string            // prefix filter (from RangeReadArgs.Prefix)
+	seqNum uint64            // passthrough sequence number
 }
 
-func (i *MemIterator) Valid() bool            { return false }
-func (i *MemIterator) Next()                  {}
-func (i *MemIterator) Key() string            { return "" }
-func (i *MemIterator) Value() []byte          { return nil }
-func (i *MemIterator) GetKV() (string, string) { return "", "" }
-func (i *MemIterator) GetSeqNum() uint64         { return 0 }
-func (i *MemIterator) Close()                 {}
+// Valid reports whether the iterator points to a valid entry.
+// Returns false when the cursor is past the end or the current key
+// no longer matches the prefix (same semantics as PumiceIterator.Valid).
+func (i *MemIterator) Valid() bool {
+	if i.pos >= len(i.keys) {
+		return false
+	}
+	if i.prefix != "" {
+		if !strings.HasPrefix(i.keys[i.pos], i.prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+// Next advances the iterator to the next key.
+func (i *MemIterator) Next() {
+	i.pos++
+}
+
+// Key returns the key at the current cursor position.
+func (i *MemIterator) Key() string {
+	return i.keys[i.pos]
+}
+
+// Value returns the value at the current cursor position.
+func (i *MemIterator) Value() []byte {
+	return []byte(i.data[i.keys[i.pos]])
+}
+
+// GetKV returns the key and value at the current cursor position.
+func (i *MemIterator) GetKV() (string, string) {
+	return i.Key(), string(i.Value())
+}
+
+// GetSeqNum returns the sequence number passed in via RangeReadArgs.
+func (i *MemIterator) GetSeqNum() uint64 {
+	return i.seqNum
+}
+
+// Close is a no-op for MemIterator (no external resources to release).
+func (i *MemIterator) Close() {}
 
 // Ensure MemStore implements the DataStore interface.
 var _ storageiface.DataStore = &MemStore{}
