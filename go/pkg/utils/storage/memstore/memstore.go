@@ -125,9 +125,24 @@ func (s *MemStore) Delete(key, selector string) error {
 // It collects all keys from the map, sorts them lexicographically,
 // and seeks to args.Key — mirroring the PumiceIterator (RocksDB) behavior.
 func (s *MemStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageiface.Iterator, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db, ok := s.data[args.Selector]
+	if !ok {
+		// Return an empty iterator if the selector is not found
+		return &MemIterator{
+			keys:   nil,
+			data:   nil,
+			pos:    0,
+			prefix: args.Prefix,
+			seqNum: args.SeqNum,
+		}, nil
+	}
+
 	// Collect all keys from the map (full snapshot).
-	allKeys := make([]string, 0, len(s.data))
-	for k := range s.data {
+	allKeys := make([]string, 0, len(db))
+	for k := range db {
 		allKeys = append(allKeys, k)
 	}
 	sort.Strings(allKeys)
@@ -137,7 +152,7 @@ func (s *MemStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageifa
 
 	return &MemIterator{
 		keys:   allKeys,
-		data:   s.data,
+		data:   db,
 		pos:    startPos,
 		prefix: args.Prefix,
 		seqNum: args.SeqNum,
@@ -152,7 +167,7 @@ func (s *MemStore) NewRangeIterator(args storageiface.RangeReadArgs) (storageifa
 // over a MemStore's data, matching the PumiceIterator interface.
 type MemIterator struct {
 	keys   []string          // lexicographically sorted key snapshot
-	data   map[string]string // reference to MemStore data for value lookups
+	data   map[string]string // reference to MemStore data for value lookups (specific column family)
 	pos    int               // current cursor position in keys
 	prefix string            // prefix filter (from RangeReadArgs.Prefix)
 	seqNum uint64            // passthrough sequence number
