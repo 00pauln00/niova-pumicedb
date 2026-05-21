@@ -99,6 +99,150 @@ func TestMemStore_Concurrency(t *testing.T) {
 	wg.Wait()
 }
 
-func TestMemStore_ImplementsInterface(t *testing.T) {
-	var _ storageiface.DataStore = NewMemStore()
+func TestMemIterator_BasicIteration(t *testing.T) {
+	ms := NewMemStore()
+	ms.Write("n_cfg/aaa/d", "dev-0", "")
+	ms.Write("n_cfg/aaa/pp", "8000", "")
+	ms.Write("n_cfg/bbb/d", "dev-1", "")
+	ms.Write("n_cfg/bbb/pp", "8001", "")
+	ms.Write("v/xxx/cfg/sz", "1024", "")
+
+	itr, err := ms.NewRangeIterator(storageiface.RangeReadArgs{
+		Key:    "n_cfg/",
+		Prefix: "n_cfg/",
+		SeqNum: 42,
+	})
+	if err != nil {
+		t.Fatalf("NewRangeIterator failed: %v", err)
+	}
+	defer itr.Close()
+
+	var keys []string
+	for itr.Valid() {
+		k, _ := itr.GetKV()
+		keys = append(keys, k)
+		itr.Next()
+	}
+
+	// Should get exactly the 4 n_cfg keys, sorted
+	if len(keys) != 4 {
+		t.Fatalf("expected 4 keys, got %d: %v", len(keys), keys)
+	}
+	expected := []string{
+		"n_cfg/aaa/d",
+		"n_cfg/aaa/pp",
+		"n_cfg/bbb/d",
+		"n_cfg/bbb/pp",
+	}
+	for i, k := range keys {
+		if k != expected[i] {
+			t.Errorf("key[%d] = %q, want %q", i, k, expected[i])
+		}
+	}
+
+	if itr.GetSeqNum() != 42 {
+		t.Errorf("GetSeqNum() = %d, want 42", itr.GetSeqNum())
+	}
+}
+
+func TestMemIterator_SeekToKey(t *testing.T) {
+	ms := NewMemStore()
+	ms.Write("n_cfg/aaa/d", "dev-0", "")
+	ms.Write("n_cfg/bbb/d", "dev-1", "")
+	ms.Write("n_cfg/ccc/d", "dev-2", "")
+
+	// Seek to bbb (simulates pagination resume)
+	itr, err := ms.NewRangeIterator(storageiface.RangeReadArgs{
+		Key:    "n_cfg/bbb/d",
+		Prefix: "n_cfg/",
+	})
+	if err != nil {
+		t.Fatalf("NewRangeIterator failed: %v", err)
+	}
+	defer itr.Close()
+
+	var keys []string
+	for itr.Valid() {
+		keys = append(keys, itr.Key())
+		itr.Next()
+	}
+
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 keys from seek, got %d: %v", len(keys), keys)
+	}
+	if keys[0] != "n_cfg/bbb/d" || keys[1] != "n_cfg/ccc/d" {
+		t.Errorf("unexpected keys: %v", keys)
+	}
+}
+
+func TestMemIterator_PrefixBoundary(t *testing.T) {
+	ms := NewMemStore()
+	ms.Write("v/id1/cfg/sz", "1024", "")
+	ms.Write("v/id1/c/0/R.0", "nisd-1", "")
+	ms.Write("v/id2/cfg/sz", "2048", "")
+
+	// Iterator with prefix "v/id1/" should NOT return v/id2 keys
+	itr, err := ms.NewRangeIterator(storageiface.RangeReadArgs{
+		Key:    "v/id1/",
+		Prefix: "v/id1/",
+	})
+	if err != nil {
+		t.Fatalf("NewRangeIterator failed: %v", err)
+	}
+	defer itr.Close()
+
+	var keys []string
+	for itr.Valid() {
+		keys = append(keys, itr.Key())
+		itr.Next()
+	}
+
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 keys for prefix v/id1/, got %d: %v", len(keys), keys)
+	}
+}
+
+func TestMemIterator_EmptyStore(t *testing.T) {
+	ms := NewMemStore()
+
+	itr, err := ms.NewRangeIterator(storageiface.RangeReadArgs{
+		Key:    "anything",
+		Prefix: "anything",
+	})
+	if err != nil {
+		t.Fatalf("NewRangeIterator failed: %v", err)
+	}
+	defer itr.Close()
+
+	if itr.Valid() {
+		t.Error("expected iterator to be invalid on empty store")
+	}
+}
+
+func TestMemIterator_ValueLookup(t *testing.T) {
+	ms := NewMemStore()
+	ms.Write("k1", "val1", "")
+	ms.Write("k2", "val2", "")
+
+	itr, err := ms.NewRangeIterator(storageiface.RangeReadArgs{
+		Key:    "k1",
+		Prefix: "k",
+	})
+	if err != nil {
+		t.Fatalf("NewRangeIterator failed: %v", err)
+	}
+	defer itr.Close()
+
+	if !itr.Valid() {
+		t.Fatal("expected valid iterator")
+	}
+
+	if string(itr.Value()) != "val1" {
+		t.Errorf("Value() = %q, want %q", string(itr.Value()), "val1")
+	}
+
+	k, v := itr.GetKV()
+	if k != "k1" || v != "val1" {
+		t.Errorf("GetKV() = (%q, %q), want (k1, val1)", k, v)
+	}
 }
