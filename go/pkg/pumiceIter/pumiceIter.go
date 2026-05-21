@@ -26,6 +26,8 @@ type cRocksdbReadoptionsT = C.rocksdb_readoptions_t
 // Iterator Implementation
 // ------------------------------------------------------------
 
+// PumiceIterator implements the storageiface.Iterator interface using RocksDB.
+// It supports prefix-based iteration and consistent reads via snapshots.
 type PumiceIterator struct {
 	itr       *cRocksdbIteratorT
 	ropts     *cRocksdbReadoptionsT
@@ -38,6 +40,8 @@ type PumiceIterator struct {
 // Iterator Methods
 // ------------------------------------------------------------
 
+// Valid returns true if the iterator is positioned at a valid key-value pair
+// and the current key satisfies the prefix constraint (if any).
 func (p *PumiceIterator) Valid() bool {
 	valid := C.rocksdb_iter_valid(p.itr) != 0
 	if !valid {
@@ -51,10 +55,12 @@ func (p *PumiceIterator) Valid() bool {
 	return true
 }
 
+// Next advances the iterator to the next key-value pair.
 func (p *PumiceIterator) Next() {
 	C.rocksdb_iter_next(p.itr)
 }
 
+// Key returns the key at the current iterator position as a string.
 func (p *PumiceIterator) Key() string {
 	var klen C.size_t
 	k := C.rocksdb_iter_key(p.itr, &klen)
@@ -62,6 +68,7 @@ func (p *PumiceIterator) Key() string {
 	return C.GoStringN((*C.char)(k), C.int(klen))
 }
 
+// Value returns the value at the current iterator position as a byte slice.
 func (p *PumiceIterator) Value() []byte {
 	var vlen C.size_t
 	v := C.rocksdb_iter_value(p.itr, &vlen)
@@ -69,14 +76,17 @@ func (p *PumiceIterator) Value() []byte {
 	return C.GoBytes(unsafe.Pointer(v), C.int(vlen))
 }
 
+// GetKV returns the key and value at the current iterator position as strings.
 func (p *PumiceIterator) GetKV() (string, string) {
 	return p.Key(), string(p.Value())
 }
 
+// GetSeqNum returns the sequence number associated with this iterator.
 func (p *PumiceIterator) GetSeqNum() uint64 {
 	return p.seqNum
 }
 
+// Close releases the underlying RocksDB iterator, read options, and snapshot.
 func (p *PumiceIterator) Close() {
 
 	if p.snapshot != nil {
@@ -96,6 +106,8 @@ func (p *PumiceIterator) Close() {
 	}
 }
 
+// NewRangeIterator creates a new PumiceIterator for the given RangeReadArgs.
+// It handles consistent read options and positions the iterator at the start key.
 func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) {
 
 	var snapshot *C.rocksdb_snapshot_t
@@ -132,6 +144,7 @@ func NewRangeIterator(args storageiface.RangeReadArgs) (*PumiceIterator, error) 
 	}, nil
 }
 
+// seekTo positions the RocksDB iterator at the specified key.
 func seekTo(key string, keyLen int64, itr *C.rocksdb_iterator_t) {
 	cKey := C.CString(key)
 	defer C.free(unsafe.Pointer(cKey))
@@ -139,10 +152,12 @@ func seekTo(key string, keyLen int64, itr *C.rocksdb_iterator_t) {
 	C.rocksdb_iter_seek(itr, cKey, C.size_t(keyLen))
 }
 
+// goToCString converts a Go string to a C string.
 func goToCString(s string) *C.char {
 	return C.CString(s)
 }
 
+// freeCMem releases memory allocated for a C string.
 func freeCMem(ptr *C.char) {
 	C.free(unsafe.Pointer(ptr))
 }
